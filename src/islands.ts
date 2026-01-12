@@ -1,28 +1,22 @@
 import * as THREE from "three";
 
-export function createIsland(): THREE.Group {
+export function createIsland(level: LevelDefinition): THREE.Group {
   const island = new THREE.Group();
   island.userData.island = true;
 
   const mat = new THREE.MeshStandardMaterial({
-    color: 0x55aa55,
-    roughness: 1.0,
-    metalness: 0.0
+    color: level.islandColor
   });
 
-  // Основа острова — большой куб
+  const size = level.islandSizeMin + Math.random() * (level.islandSizeMax - level.islandSizeMin);
+
   const base = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      20 + Math.random() * 20,
-      2 + Math.random() * 2,
-      20 + Math.random() * 20
-    ),
+    new THREE.BoxGeometry(size, 2 + Math.random() * 2, size),
     mat
   );
   base.position.y = -1;
   island.add(base);
 
-  // Добавляем "холмы" — маленькие кубики сверху
   const hills = 5 + Math.floor(Math.random() * 8);
   for (let i = 0; i < hills; i++) {
     const w = 2 + Math.random() * 4;
@@ -35,20 +29,20 @@ export function createIsland(): THREE.Group {
     );
 
     hill.position.set(
-      (Math.random() - 0.5) * base.geometry.parameters.width * 0.6,
+      (Math.random() - 0.5) * size * 0.6,
       h / 2,
-      (Math.random() - 0.5) * base.geometry.parameters.depth * 0.6
+      (Math.random() - 0.5) * size * 0.6
     );
 
     island.add(hill);
   }
 
-  // Позиция острова в мире
   island.position.set(
-    (Math.random() - 0.5) * 500,
+    (Math.random() - 0.5) * level.worldSize,
     -2,
-    (Math.random() - 0.5) * 500
+    (Math.random() - 0.5) * level.worldSize
   );
 
   return island;
 }
+

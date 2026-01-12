@@ -1,24 +1,20 @@
 import * as THREE from "three";
 
-export function createCloud(): THREE.Group {
+export function createCloud(level: LevelDefinition): THREE.Group {
   const cloud = new THREE.Group();
   cloud.userData.cloud = true;
 
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.9,
-    metalness: 0.0
-  });
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
 
   const parts = 3 + Math.floor(Math.random() * 4);
 
   for (let i = 0; i < parts; i++) {
-    const w = 1 + Math.random() * 2;
-    const h = 0.6 + Math.random() * 0.6;
-    const d = 1 + Math.random() * 2;
-
     const box = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
+      new THREE.BoxGeometry(
+        1 + Math.random() * 2,
+        0.6 + Math.random() * 0.6,
+        1 + Math.random() * 2
+      ),
       mat
     );
 
@@ -32,12 +28,11 @@ export function createCloud(): THREE.Group {
   }
 
   cloud.position.set(
-    (Math.random() - 0.5) * 300,
-    5 + Math.random() * 15,
-    (Math.random() - 0.5) * 300
+    (Math.random() - 0.5) * level.worldSize,
+    level.cloudHeightMin + Math.random() * (level.cloudHeightMax - level.cloudHeightMin),
+    (Math.random() - 0.5) * level.worldSize
   );
-
-  cloud.rotation.y = Math.random() * Math.PI * 2;
 
   return cloud;
 }
+

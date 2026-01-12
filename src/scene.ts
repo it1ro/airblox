@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { LEVELS } from "./levels";
-import { generateLevel } from "./levelGenerator";
+import { generateLevel } from "./level-generator";
 
 export function createScene() {
   const scene = new THREE.Scene();

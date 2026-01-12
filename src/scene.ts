@@ -1,9 +1,10 @@
 import * as THREE from "three";
+import { createCloud } from "./clouds";
 
 export function createScene() {
   const scene = new THREE.Scene();
 
-  // Градиентное небо
+  // === ГРАДИЕНТНОЕ НЕБО ===
   const skyGeo = new THREE.SphereGeometry(1000, 32, 32);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
@@ -32,7 +33,7 @@ export function createScene() {
   const sky = new THREE.Mesh(skyGeo, skyMat);
   scene.add(sky);
 
-  // Камера
+  // === КАМЕРА ===
   const camera = new THREE.PerspectiveCamera(
     70,
     window.innerWidth / window.innerHeight,
@@ -41,12 +42,17 @@ export function createScene() {
   );
   camera.position.set(0, 3, -8);
 
-  // Свет
+  // === СВЕТ ===
   const light = new THREE.DirectionalLight(0xffffff, 1);
   light.position.set(10, 20, 10);
   scene.add(light);
 
-  // Рендерер
+  // === ОБЛАКА ===
+  for (let i = 0; i < 40; i++) {
+    scene.add(createCloud());
+  }
+
+  // === РЕНДЕРЕР ===
   const renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { createCloud } from "./clouds";
+import { createIsland } from "./islands";
 
 export function createScene() {
   const scene = new THREE.Scene();
@@ -47,9 +48,23 @@ export function createScene() {
   light.position.set(10, 20, 10);
   scene.add(light);
 
+  // === ОКЕАН ===
+  const ocean = new THREE.Mesh(
+    new THREE.PlaneGeometry(2000, 2000),
+    new THREE.MeshStandardMaterial({ color: 0x3366aa })
+  );
+  ocean.rotation.x = -Math.PI / 2;
+  ocean.position.y = -3;
+  scene.add(ocean);
+
   // === ОБЛАКА ===
   for (let i = 0; i < 40; i++) {
     scene.add(createCloud());
+  }
+
+  // === ОСТРОВА ===
+  for (let i = 0; i < 12; i++) {
+    scene.add(createIsland());
   }
 
   // === РЕНДЕРЕР ===

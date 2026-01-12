@@ -1,6 +1,7 @@
 import { createScene } from "./scene";
 import { createAirplane } from "./airplane";
 import { createControls } from "./controls";
+import * as THREE from "three";
 
 const { scene, camera, renderer } = createScene();
 const airplane = createAirplane();

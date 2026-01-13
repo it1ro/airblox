@@ -1,41 +1,64 @@
 import * as THREE from "three";
+import { AirplaneStats } from "./airplanes";
 
-export function createControls(airplane: THREE.Object3D) {
+export function createControls(airplane: THREE.Object3D, stats: AirplaneStats) {
   const keys = new Set<string>();
 
   // === Управление ===
-  // Тангаж
-  const PITCH_UP = ["w", "ц", "arrowup"];      // пикирование
-  const PITCH_DOWN = ["s", "ы", "arrowdown"];      // кабрирование
+  const PITCH_UP = ["w", "ц", "arrowup"];        // пикирование
+  const PITCH_DOWN = ["s", "ы", "arrowdown"];    // кабрирование
 
-  // Крен (ПЕРЕВЕРНУТО)
   const ROLL_LEFT = ["d", "в", "arrowright"];    // крен влево
   const ROLL_RIGHT = ["a", "ф", "arrowleft"];    // крен вправо
+
+  // === Физические состояния ===
+  let pitchVelocity = 0;
+  let rollVelocity = 0;
 
   // === Слушатели клавиш ===
   window.addEventListener("keydown", e => keys.add(e.key.toLowerCase()));
   window.addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 
-  window.addEventListener("keydown", e => { console.log("KEY:", e.key.toLowerCase()); keys.add(e.key.toLowerCase()); });
   function update() {
-    let pitch = 0;
-    let roll = 0;
+    let pitchInput = 0;
+    let rollInput = 0;
 
     // === Тангаж ===
-    if (PITCH_UP.some(k => keys.has(k))) pitch += 1;
-    if (PITCH_DOWN.some(k => keys.has(k))) pitch -= 1;
+    if (PITCH_UP.some(k => keys.has(k))) pitchInput += 1;
+    if (PITCH_DOWN.some(k => keys.has(k))) pitchInput -= 1;
 
     // === Крен ===
-    if (ROLL_LEFT.some(k => keys.has(k))) roll += 1;
-    if (ROLL_RIGHT.some(k => keys.has(k))) roll -= 1;
+    if (ROLL_LEFT.some(k => keys.has(k))) rollInput += 1;
+    if (ROLL_RIGHT.some(k => keys.has(k))) rollInput -= 1;
 
-    // === Применяем вращение ===
-    airplane.rotation.x += pitch * 0.02; // тангаж
-    airplane.rotation.z += roll * 0.03;  // крен
+    // === Инерция ===
+    pitchVelocity += pitchInput * stats.pitchAccel;
+    rollVelocity += rollInput * stats.rollAccel;
+
+    // === Автостабилизация ===
+    if (pitchInput === 0) pitchVelocity -= airplane.rotation.x * stats.autoLevel;
+    if (rollInput === 0) rollVelocity -= airplane.rotation.z * stats.autoLevel;
+
+    // === Затухание ===
+    pitchVelocity *= stats.pitchDamping;
+    rollVelocity *= stats.rollDamping;
+
+    // === Ограничение углов ===
+    airplane.rotation.x = THREE.MathUtils.clamp(
+      airplane.rotation.x + pitchVelocity,
+      -stats.maxPitch,
+      stats.maxPitch
+    );
+
+    airplane.rotation.z = THREE.MathUtils.clamp(
+      airplane.rotation.z + rollVelocity,
+      -stats.maxRoll,
+      stats.maxRoll
+    );
 
     // === Движение вперёд ===
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(airplane.quaternion);
-    airplane.position.add(forward.multiplyScalar(0.3));
+    airplane.position.add(forward.multiplyScalar(stats.speed));
   }
 
   return { update };

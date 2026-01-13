@@ -2,12 +2,13 @@ import * as THREE from "three";
 import { createScene } from "./scene";
 import { createAirplane } from "./airplane";
 import { createControls } from "./controls";
+import { LIGHT_FIGHTER } from "./airplanes";
 
 const { scene, camera, renderer } = createScene();
 const airplane = createAirplane();
 scene.add(airplane);
 
-const controls = createControls(airplane);
+const controls = createControls(airplane, LIGHT_FIGHTER);
 
 function loop() {
   requestAnimationFrame(loop);

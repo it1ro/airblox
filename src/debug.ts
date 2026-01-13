@@ -2,38 +2,98 @@
 // ============================================================================
 // DEBUG MODULE FOR AIRBLOX
 // ----------------------------------------------------------------------------
-// Contains:
+// Features:
 //  - HUD overlay for live flight parameters
-//  - structured logging of events (input, state, stabilization, etc.)
-//  - log export to JSON (F9)
+//  - structured logging with categories
+//  - logging presets (minimal, stabilizationDebug, full)
+//  - logging ON/OFF toggle (F7)
 //  - log copy to clipboard (F8)
+//  - log export to JSON (F9)
+//  - HUD color changes depending on logging state
 //  - toast notifications
 // ============================================================================
 
 export const Debug = {
-  enabled: true,            // global switch for all debug features
-  logs: [] as any[],        // ring buffer for log entries
+  enabled: true,             // global switch for debug system
+  loggingEnabled: true,      // controls whether logs are recorded
+  logs: [] as any[],         // ring buffer
   hud: null as HTMLDivElement | null,
   toast: null as HTMLDivElement | null,
 
+  // Logging categories
+  logConfig: {
+    input: true,
+    stabilization: true,
+    anomalies: true,
+    damping: true,
+    zeroCross: true,
+    altitude: true,
+    camera: true,
+    stateSnapshot: true
+  } as Record<string, boolean>,
+
+  // Presets
+  presets: {
+    minimal: {
+      input: false,
+      stabilization: false,
+      anomalies: false,
+      damping: false,
+      zeroCross: false,
+      altitude: true,
+      camera: false,
+      stateSnapshot: true
+    },
+    stabilizationDebug: {
+      input: true,
+      stabilization: true,
+      anomalies: true,
+      damping: true,
+      zeroCross: true,
+      altitude: false,
+      camera: false,
+      stateSnapshot: false
+    },
+    full: {
+      input: true,
+      stabilization: true,
+      anomalies: true,
+      damping: true,
+      zeroCross: true,
+      altitude: true,
+      camera: true,
+      stateSnapshot: true
+    }
+  },
+
+  // Apply preset
+  applyPreset(name: string) {
+    const preset = this.presets[name];
+    if (!preset) {
+      this.showToast(`Unknown preset: ${name}`);
+      return;
+    }
+    this.logConfig = { ...preset };
+    this.showToast(`Preset: ${name}`);
+  },
+
+  // HUD color depending on logging state
+  updateHudStyle() {
+    if (!this.hud) return;
+    this.hud.style.color = this.loggingEnabled ? "#0f0" : "#fff";
+  },
+
   init() {
     if (!this.enabled) return;
-    if (this.hud) return; // prevent double init
+    if (this.hud) return;
 
-    // === HUD overlay ===
-    // Shows key flight parameters:
-    //  - angles (pitch/roll)
-    //  - angular velocities
-    //  - altitude above ground
-    //  - distance to camera
-    //  - relative orientation to camera
+    // === HUD ===
     const hud = document.createElement("div");
     hud.style.position = "fixed";
     hud.style.top = "10px";
     hud.style.left = "10px";
     hud.style.padding = "8px 12px";
     hud.style.background = "rgba(0, 0, 0, 0.5)";
-    hud.style.color = "#0f0";
     hud.style.fontFamily = "monospace";
     hud.style.fontSize = "12px";
     hud.style.whiteSpace = "pre";
@@ -41,8 +101,9 @@ export const Debug = {
     hud.style.zIndex = "9999";
     document.body.appendChild(hud);
     this.hud = hud;
+    this.updateHudStyle();
 
-    // === Toast notifications ===
+    // === Toast ===
     const toast = document.createElement("div");
     toast.style.position = "fixed";
     toast.style.bottom = "20px";
@@ -63,14 +124,26 @@ export const Debug = {
 
     // === Hotkeys ===
     window.addEventListener("keydown", e => {
-      // F8 — copy log to clipboard
+      // Toggle logging
+      if (e.key === "F7") {
+        this.loggingEnabled = !this.loggingEnabled;
+        this.updateHudStyle();
+        this.showToast(this.loggingEnabled ? "Logging ON" : "Logging OFF");
+      }
+
+      // Presets
+      if (e.key === "F5") this.applyPreset("minimal");
+      if (e.key === "F6") this.applyPreset("stabilizationDebug");
+      if (e.key === "F10") this.applyPreset("full");
+
+      // Copy log
       if (e.key === "F8") {
         const text = JSON.stringify(this.logs, null, 2);
         navigator.clipboard.writeText(text);
-        this.showToast("Log copied to clipboard");
+        this.showToast("Log copied");
       }
 
-      // F9 — download JSON log file
+      // Export JSON
       if (e.key === "F9") {
         const blob = new Blob(
           [JSON.stringify(this.logs, null, 2)],
@@ -85,7 +158,6 @@ export const Debug = {
     });
   },
 
-  // Show short toast notification
   showToast(text: string) {
     if (!this.toast) return;
     this.toast.textContent = text;
@@ -95,25 +167,25 @@ export const Debug = {
     }, 800);
   },
 
-  // Add entry to log
-  // event — event name
-  // data  — arbitrary payload (angles, velocities, inputs, etc.)
-  log(event: string, data: any = {}) {
+  // Main logging function
+  log(type: string, event: string, data: any = {}) {
     if (!this.enabled) return;
+    if (!this.loggingEnabled) return;
+    if (!this.logConfig[type]) return;
 
     const entry = {
       time: performance.now(),
+      type,
       event,
       ...data
     };
 
     this.logs.push(entry);
-    if (this.logs.length > 300) this.logs.shift(); // ring buffer
+    if (this.logs.length > 3000) this.logs.shift();
 
-    console.log("[DBG]", event, data);
+    console.log("[DBG]", type, event, data);
   },
 
-  // Update HUD content with key-value pairs
   updateHUD(values: Record<string, any>) {
     if (!this.enabled || !this.hud) return;
 

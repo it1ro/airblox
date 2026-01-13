@@ -59,13 +59,13 @@ export function createControls(
   window.addEventListener("keydown", e => {
     const key = e.key.toLowerCase();
     keys.add(key);
-    Debug.log("KEY_DOWN", { key });
+    Debug.log("input", "KEY_DOWN", { key });
   });
 
   window.addEventListener("keyup", e => {
     const key = e.key.toLowerCase();
     keys.delete(key);
-    Debug.log("KEY_UP", { key });
+    Debug.log("input", "KEY_UP", { key });
   });
 
   let lastStateLog = 0;
@@ -81,8 +81,8 @@ export function createControls(
     if (ROLL_RIGHT.some(k => keys.has(k))) rollInput -= 1;
 
     // Логируем ввод / Log input
-    if (pitchInput !== 0) Debug.log("PITCH_INPUT", { pitchInput });
-    if (rollInput !== 0) Debug.log("ROLL_INPUT", { rollInput });
+    if (pitchInput !== 0) Debug.log("input", "PITCH_INPUT", { pitchInput });
+    if (rollInput !== 0) Debug.log("input", "ROLL_INPUT", { rollInput });
 
     // Инерция вращения / Angular inertia
     pitchVelocity += pitchInput * stats.pitchAccel;
@@ -106,7 +106,7 @@ export function createControls(
       appliedForce: number,
       reason: string
     ) {
-      Debug.log("STAB_EVENT", {
+      Debug.log("stabilization", "STAB_EVENT", {
         axis,
         angle,
         appliedForce,
@@ -133,20 +133,19 @@ export function createControls(
 
         const idleFor = performance.now() - lastStabActivePitch;
         if (idleFor > 1000) {
-          Debug.log("STAB_IDLE", {
+          Debug.log("stabilization", "STAB_IDLE", {
             axis: "pitch",
             angle: pitchAngle,
             idleFor,
             reason: "no_stabilization_for_1s_due_to_angle"
           });
-          // не обновляем lastStabActivePitch — это "длительное отсутствие"
         }
       }
     } else {
       logStabState("pitch", pitchAngle, 0, "disabled_player_input");
       const idleFor = performance.now() - lastStabActivePitch;
       if (idleFor > 1000) {
-        Debug.log("STAB_IDLE", {
+        Debug.log("stabilization", "STAB_IDLE", {
           axis: "pitch",
           angle: pitchAngle,
           idleFor,
@@ -170,7 +169,7 @@ export function createControls(
 
         const idleFor = performance.now() - lastStabActiveRoll;
         if (idleFor > 1000) {
-          Debug.log("STAB_IDLE", {
+          Debug.log("stabilization", "STAB_IDLE", {
             axis: "roll",
             angle: rollAngle,
             idleFor,
@@ -182,7 +181,7 @@ export function createControls(
       logStabState("roll", rollAngle, 0, "disabled_player_input");
       const idleFor = performance.now() - lastStabActiveRoll;
       if (idleFor > 1000) {
-        Debug.log("STAB_IDLE", {
+        Debug.log("stabilization", "STAB_IDLE", {
           axis: "roll",
           angle: rollAngle,
           idleFor,
@@ -193,7 +192,7 @@ export function createControls(
 
     // === Аномалии стабилизации / Stabilization anomalies ===
     if (Math.abs(pitchVelocity) > 0.04) {
-      Debug.log("STAB_ANOMALY", {
+      Debug.log("anomalies", "STAB_ANOMALY", {
         axis: "pitch",
         pitchVelocity,
         reason: "high_rotation_speed"
@@ -201,7 +200,7 @@ export function createControls(
     }
 
     if (Math.abs(rollVelocity) > 0.05) {
-      Debug.log("STAB_ANOMALY", {
+      Debug.log("anomalies", "STAB_ANOMALY", {
         axis: "roll",
         rollVelocity,
         reason: "high_rotation_speed"
@@ -209,7 +208,7 @@ export function createControls(
     }
 
     if (pitchAbs > Math.PI * 0.5) {
-      Debug.log("STAB_ANOMALY", {
+      Debug.log("anomalies", "STAB_ANOMALY", {
         axis: "pitch",
         angle: pitchAngle,
         reason: "inverted_flight"
@@ -217,7 +216,7 @@ export function createControls(
     }
 
     if (rollAbs > Math.PI * 0.5) {
-      Debug.log("STAB_ANOMALY", {
+      Debug.log("anomalies", "STAB_ANOMALY", {
         axis: "roll",
         angle: rollAngle,
         reason: "inverted_flight"
@@ -233,17 +232,16 @@ export function createControls(
     rollVelocity *= stats.rollDamping;
 
     // Лог демпфирования / Damping log
-    Debug.log("DAMPING", {
+    Debug.log("damping", "DAMPING", {
       pitchVelocity,
       rollVelocity,
       pitchDamping: stats.pitchDamping,
       rollDamping: stats.rollDamping
     });
 
-    // Логирование перехода через 0° (zero-cross) — важно для анализа "отпружинивания"
-    // Zero-cross logging: angle sign change before applying rotation
+    // Логирование перехода через 0° (zero-cross)
     if (Math.sign(pitchAngle) !== Math.sign(pitchAngle + pitchVelocity)) {
-      Debug.log("STAB_ZERO_CROSS", {
+      Debug.log("zeroCross", "STAB_ZERO_CROSS", {
         axis: "pitch",
         from: pitchAngle,
         to: pitchAngle + pitchVelocity
@@ -251,7 +249,7 @@ export function createControls(
     }
 
     if (Math.sign(rollAngle) !== Math.sign(rollAngle + rollVelocity)) {
-      Debug.log("STAB_ZERO_CROSS", {
+      Debug.log("zeroCross", "STAB_ZERO_CROSS", {
         axis: "roll",
         from: rollAngle,
         to: rollAngle + rollVelocity
@@ -290,12 +288,11 @@ export function createControls(
     let relRoll: number | null = null;
 
     if (camera) {
-      // Вектор от камеры к самолёту / camera → airplane vector
-      const camToPlane = airplane.position.clone().sub((camera as any).position);
+      const cam = camera as any;
+      const camToPlane = airplane.position.clone().sub(cam.position);
       distanceToCamera = camToPlane.length();
 
-      // Разница ориентаций (кватернионы) / orientation difference
-      const relativeQuat = (camera as any).quaternion.clone().invert().multiply(airplane.quaternion);
+      const relativeQuat = cam.quaternion.clone().invert().multiply(airplane.quaternion);
       const relEuler = new THREE.Euler().setFromQuaternion(relativeQuat);
 
       relPitch = relEuler.x;
@@ -308,7 +305,7 @@ export function createControls(
     // ========================================================================
     const now = performance.now();
     if (now - lastStateLog > 200) {
-      Debug.log("STATE", {
+      Debug.log("stateSnapshot", "STATE", {
         pitchAngle,
         rollAngle,
         pitchVelocity,

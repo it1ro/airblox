@@ -8,7 +8,7 @@ const { scene, camera, renderer } = createScene();
 const airplane = createAirplane();
 scene.add(airplane);
 
-const controls = createControls(airplane, LIGHT_FIGHTER);
+const controls = createControls(airplane, LIGHT_FIGHTER, scene, camera);
 
 function loop() {
   requestAnimationFrame(loop);

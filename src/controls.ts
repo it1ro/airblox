@@ -1,70 +1,346 @@
 import * as THREE from "three";
 import { AirplaneStats } from "./airplanes";
+import { Debug } from "./debug";
 
-export function createControls(airplane: THREE.Object3D, stats: AirplaneStats) {
+// Логируются / Logged:
+//  - ввод игрока (pitch/roll) 
+//      → player input (pitch/roll)
+//  - углы самолёта (pitchAngle, rollAngle) 
+//      → airplane orientation angles (pitchAngle, rollAngle)
+//  - скорости вращения (pitchVelocity, rollVelocity) 
+//      → angular velocities (pitchVelocity, rollVelocity)
+//  - высота над землёй (raycast вниз) 
+//      → altitude above ground (raycast downward)
+//  - положение самолёта относительно камеры 
+//      → airplane position relative to camera
+//  - относительные углы самолёта к камере 
+//      → relative orientation to camera (pitch/yaw/roll difference)
+//  - состояние стабилизации 
+//      → stabilization state (enabled/disabled, force applied)
+//
+//  - периодический STATE-снимок (раз в 200 мс)
+//      → periodic STATE snapshot (every 200 ms)
+//      Это автоматическая запись полного состояния самолёта в лог через равные интервалы времени.
+//      В отличие от событий (нажатие клавиши, включение стабилизации и т.п.), этот снимок
+//      фиксирует текущее состояние самолёта "как есть": углы, скорости вращения, позицию,
+//      высоту над землёй, расстояние до камеры и относительные углы.
+//      Такой снимок создаёт "чёрный ящик" полёта — помогает анализировать поведение между событиями,
+//      ловить редкие баги, которые проявляются не в момент нажатия кнопки, а спустя время.
+//      Интервал 200 мс выбран как компромисс: достаточно часто, чтобы видеть динамику,
+//      но достаточно редко, чтобы не засорять лог лишними данными.
+// ============================================================================
+
+export function createControls(
+  airplane: THREE.Object3D,
+  stats: AirplaneStats,
+  scene?: THREE.Scene,
+  camera?: THREE.Camera
+) {
   const keys = new Set<string>();
 
-  // === Управление ===
-  const PITCH_UP = ["w", "ц", "arrowup"];        // пикирование (нос вниз)
-  const PITCH_DOWN = ["s", "ы", "arrowdown"];    // кабрирование (нос вверх)
+  // Клавиши управления / Control keys
+  const PITCH_UP = ["w", "ц", "arrowup"];
+  const PITCH_DOWN = ["s", "ы", "arrowdown"];
+  const ROLL_LEFT = ["d", "в", "arrowright"];
+  const ROLL_RIGHT = ["a", "ф", "arrowleft"];
 
-  const ROLL_LEFT = ["d", "в", "arrowright"];    // крен влево
-  const ROLL_RIGHT = ["a", "ф", "arrowleft"];    // крен вправо
-
-  // === Состояние ===
+  // Скорости вращения самолёта / Angular velocities
   let pitchVelocity = 0;
   let rollVelocity = 0;
 
-  // === Слушатели клавиш ===
-  window.addEventListener("keydown", e => keys.add(e.key.toLowerCase()));
-  window.addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+  // Последняя активность стабилизации по каждой оси
+  // Last time stabilization was actively applied on each axis
+  let lastStabActivePitch = performance.now();
+  let lastStabActiveRoll = performance.now();
+
+  Debug.init();
+
+  // Логирование нажатий клавиш / Key input logging
+  window.addEventListener("keydown", e => {
+    const key = e.key.toLowerCase();
+    keys.add(key);
+    Debug.log("KEY_DOWN", { key });
+  });
+
+  window.addEventListener("keyup", e => {
+    const key = e.key.toLowerCase();
+    keys.delete(key);
+    Debug.log("KEY_UP", { key });
+  });
+
+  let lastStateLog = 0;
 
   function update() {
     let pitchInput = 0;
     let rollInput = 0;
 
-    // === Ввод игрока ===
+    // Ввод игрока / Player input
     if (PITCH_UP.some(k => keys.has(k))) pitchInput += 1;
     if (PITCH_DOWN.some(k => keys.has(k))) pitchInput -= 1;
-
     if (ROLL_LEFT.some(k => keys.has(k))) rollInput += 1;
     if (ROLL_RIGHT.some(k => keys.has(k))) rollInput -= 1;
 
-    // === Инерция вращения ===
+    // Логируем ввод / Log input
+    if (pitchInput !== 0) Debug.log("PITCH_INPUT", { pitchInput });
+    if (rollInput !== 0) Debug.log("ROLL_INPUT", { rollInput });
+
+    // Инерция вращения / Angular inertia
     pitchVelocity += pitchInput * stats.pitchAccel;
     rollVelocity += rollInput * stats.rollAccel;
 
-    // === Автостабилизация (нелинейная, зависящая от скорости) ===
-    const speedFactor = stats.speed * 2.0;
-
+    // Текущие углы самолёта / Current airplane angles
     const pitchAngle = airplane.rotation.x;
     const rollAngle = airplane.rotation.z;
 
+    const pitchAbs = Math.abs(pitchAngle);
+    const rollAbs = Math.abs(rollAngle);
+
+    const speedFactor = stats.speed * 2.0;
+    const STAB_LIMIT = Math.PI * 0.25; // 45°
+
+    // Вспомогательная функция логирования активности стабилизатора
+    // Helper for detailed stabilization logging
+    function logStabState(
+      axis: "pitch" | "roll",
+      angle: number,
+      appliedForce: number,
+      reason: string
+    ) {
+      Debug.log("STAB_EVENT", {
+        axis,
+        angle,
+        appliedForce,
+        reason
+      });
+    }
+
+    // === Автостабилизация / Autostabilization ===
+    // Работает только при малых углах, чтобы избежать "отпружинивания"
+    // Works only at small angles to avoid "spring back"
+
+    // PITCH stabilization
     if (pitchInput === 0) {
-      const pitchAuto = stats.autoLevel * (Math.abs(pitchAngle) * 1.2 + 0.1);
-      pitchVelocity -= pitchAngle * pitchAuto * speedFactor;
+      if (pitchAbs < STAB_LIMIT) {
+        const force = stats.autoLevel * (pitchAbs * 1.2 + 0.1);
+        const applied = pitchAngle * force * speedFactor;
+
+        logStabState("pitch", pitchAngle, applied, "active");
+
+        pitchVelocity -= applied;
+        lastStabActivePitch = performance.now();
+      } else {
+        logStabState("pitch", pitchAngle, 0, "disabled_angle_limit");
+
+        const idleFor = performance.now() - lastStabActivePitch;
+        if (idleFor > 1000) {
+          Debug.log("STAB_IDLE", {
+            axis: "pitch",
+            angle: pitchAngle,
+            idleFor,
+            reason: "no_stabilization_for_1s_due_to_angle"
+          });
+          // не обновляем lastStabActivePitch — это "длительное отсутствие"
+        }
+      }
+    } else {
+      logStabState("pitch", pitchAngle, 0, "disabled_player_input");
+      const idleFor = performance.now() - lastStabActivePitch;
+      if (idleFor > 1000) {
+        Debug.log("STAB_IDLE", {
+          axis: "pitch",
+          angle: pitchAngle,
+          idleFor,
+          reason: "no_stabilization_for_1s_due_to_input"
+        });
+      }
     }
 
+    // ROLL stabilization
     if (rollInput === 0) {
-      const rollAuto = stats.autoLevel * (Math.abs(rollAngle) * 1.5 + 0.2);
-      rollVelocity -= rollAngle * rollAuto * speedFactor;
+      if (rollAbs < STAB_LIMIT) {
+        const force = stats.autoLevel * (rollAbs * 1.5 + 0.2);
+        const applied = rollAngle * force * speedFactor;
+
+        logStabState("roll", rollAngle, applied, "active");
+
+        rollVelocity -= applied;
+        lastStabActiveRoll = performance.now();
+      } else {
+        logStabState("roll", rollAngle, 0, "disabled_angle_limit");
+
+        const idleFor = performance.now() - lastStabActiveRoll;
+        if (idleFor > 1000) {
+          Debug.log("STAB_IDLE", {
+            axis: "roll",
+            angle: rollAngle,
+            idleFor,
+            reason: "no_stabilization_for_1s_due_to_angle"
+          });
+        }
+      }
+    } else {
+      logStabState("roll", rollAngle, 0, "disabled_player_input");
+      const idleFor = performance.now() - lastStabActiveRoll;
+      if (idleFor > 1000) {
+        Debug.log("STAB_IDLE", {
+          axis: "roll",
+          angle: rollAngle,
+          idleFor,
+          reason: "no_stabilization_for_1s_due_to_input"
+        });
+      }
     }
 
-    // === Ограничение скорости вращения (НЕ угла) ===
+    // === Аномалии стабилизации / Stabilization anomalies ===
+    if (Math.abs(pitchVelocity) > 0.04) {
+      Debug.log("STAB_ANOMALY", {
+        axis: "pitch",
+        pitchVelocity,
+        reason: "high_rotation_speed"
+      });
+    }
+
+    if (Math.abs(rollVelocity) > 0.05) {
+      Debug.log("STAB_ANOMALY", {
+        axis: "roll",
+        rollVelocity,
+        reason: "high_rotation_speed"
+      });
+    }
+
+    if (pitchAbs > Math.PI * 0.5) {
+      Debug.log("STAB_ANOMALY", {
+        axis: "pitch",
+        angle: pitchAngle,
+        reason: "inverted_flight"
+      });
+    }
+
+    if (rollAbs > Math.PI * 0.5) {
+      Debug.log("STAB_ANOMALY", {
+        axis: "roll",
+        angle: rollAngle,
+        reason: "inverted_flight"
+      });
+    }
+
+    // Ограничение скорости вращения / Clamp angular velocities
     pitchVelocity = THREE.MathUtils.clamp(pitchVelocity, -0.05, 0.05);
     rollVelocity = THREE.MathUtils.clamp(rollVelocity, -0.06, 0.06);
 
-    // === Затухание ===
+    // Затухание / Damping
     pitchVelocity *= stats.pitchDamping;
     rollVelocity *= stats.rollDamping;
 
-    // === Применяем вращение (без ограничения угла — можно делать петли) ===
+    // Лог демпфирования / Damping log
+    Debug.log("DAMPING", {
+      pitchVelocity,
+      rollVelocity,
+      pitchDamping: stats.pitchDamping,
+      rollDamping: stats.rollDamping
+    });
+
+    // Логирование перехода через 0° (zero-cross) — важно для анализа "отпружинивания"
+    // Zero-cross logging: angle sign change before applying rotation
+    if (Math.sign(pitchAngle) !== Math.sign(pitchAngle + pitchVelocity)) {
+      Debug.log("STAB_ZERO_CROSS", {
+        axis: "pitch",
+        from: pitchAngle,
+        to: pitchAngle + pitchVelocity
+      });
+    }
+
+    if (Math.sign(rollAngle) !== Math.sign(rollAngle + rollVelocity)) {
+      Debug.log("STAB_ZERO_CROSS", {
+        axis: "roll",
+        from: rollAngle,
+        to: rollAngle + rollVelocity
+      });
+    }
+
+    // Применяем вращение / Apply rotation
     airplane.rotation.x += pitchVelocity;
     airplane.rotation.z += rollVelocity;
 
-    // === Движение вперёд ===
+    // === Движение вперёд / Forward movement ===
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(airplane.quaternion);
     airplane.position.add(forward.multiplyScalar(stats.speed));
+
+    // ========================================================================
+    // ВЫСОТА НАД ЗЕМЛЁЙ (raycast вниз) / ALTITUDE ABOVE GROUND
+    // ========================================================================
+    let altitude: number | null = null;
+
+    if (scene) {
+      const ray = new THREE.Raycaster(
+        airplane.position.clone(),
+        new THREE.Vector3(0, -1, 0)
+      );
+
+      const hits = ray.intersectObjects(scene.children, true);
+      if (hits.length > 0) altitude = hits[0].distance;
+    }
+
+    // ========================================================================
+    // ПОЛОЖЕНИЕ ОТНОСИТЕЛЬНО КАМЕРЫ / RELATIVE TO CAMERA
+    // ========================================================================
+    let distanceToCamera: number | null = null;
+    let relPitch: number | null = null;
+    let relYaw: number | null = null;
+    let relRoll: number | null = null;
+
+    if (camera) {
+      // Вектор от камеры к самолёту / camera → airplane vector
+      const camToPlane = airplane.position.clone().sub((camera as any).position);
+      distanceToCamera = camToPlane.length();
+
+      // Разница ориентаций (кватернионы) / orientation difference
+      const relativeQuat = (camera as any).quaternion.clone().invert().multiply(airplane.quaternion);
+      const relEuler = new THREE.Euler().setFromQuaternion(relativeQuat);
+
+      relPitch = relEuler.x;
+      relYaw = relEuler.y;
+      relRoll = relEuler.z;
+    }
+
+    // ========================================================================
+    // ПЕРИОДИЧЕСКИЙ STATE-лог (раз в 200 мс) / PERIODIC STATE SNAPSHOT
+    // ========================================================================
+    const now = performance.now();
+    if (now - lastStateLog > 200) {
+      Debug.log("STATE", {
+        pitchAngle,
+        rollAngle,
+        pitchVelocity,
+        rollVelocity,
+        altitude,
+        distanceToCamera,
+        relPitch,
+        relYaw,
+        relRoll,
+        pos: {
+          x: airplane.position.x,
+          y: airplane.position.y,
+          z: airplane.position.z
+        }
+      });
+      lastStateLog = now;
+    }
+
+    // ========================================================================
+    // HUD — отображение ключевых параметров / HUD display
+    // ========================================================================
+    Debug.updateHUD({
+      pitchDeg: (pitchAngle * 180 / Math.PI).toFixed(1),
+      rollDeg: (rollAngle * 180 / Math.PI).toFixed(1),
+      pitchVel: pitchVelocity.toFixed(4),
+      rollVel: rollVelocity.toFixed(4),
+      altitude: altitude !== null ? altitude.toFixed(2) : "N/A",
+      distCam: distanceToCamera !== null ? distanceToCamera.toFixed(2) : "N/A",
+      relPitch: relPitch !== null ? (relPitch * 180 / Math.PI).toFixed(1) : "N/A",
+      relYaw: relYaw !== null ? (relYaw * 180 / Math.PI).toFixed(1) : "N/A",
+      relRoll: relRoll !== null ? (relRoll * 180 / Math.PI).toFixed(1) : "N/A"
+    });
   }
 
   return { update };

@@ -12,8 +12,8 @@ export interface AirplaneStats {
 // === 1. Лёгкий истребитель (самый манёвренный) ===
 export const LIGHT_FIGHTER: AirplaneStats = {
   speed: 0.42,
-  pitchAccel: 0.0032,
-  rollAccel: 0.0045,
+  pitchAccel: 0.0012,
+  rollAccel: 0.0025,
   pitchDamping: 0.92,
   rollDamping: 0.90,
   autoLevel: 0.015,

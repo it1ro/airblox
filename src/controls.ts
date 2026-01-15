@@ -257,12 +257,20 @@ export function createControls(
     }
 
     // Применяем вращение / Apply rotation
-    airplane.rotation.x += pitchVelocity;
-    airplane.rotation.z += rollVelocity;
+    airplane.rotateX(pitchVelocity);
+    airplane.rotateZ(rollVelocity);
 
     // === Движение вперёд / Forward movement ===
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(airplane.quaternion);
     airplane.position.add(forward.multiplyScalar(stats.speed));
+
+    // === ВРАЩЕНИЕ ПРОПЕЛЛЕРА ===
+    if (airplane.userData.propeller) {
+      // скорость вращения зависит от скорости самолёта
+      const spin = stats.speed * 20; // можно увеличить/уменьшить
+      airplane.userData.propeller.rotation.z += spin;
+    }
+
 
     // ========================================================================
     // ВЫСОТА НАД ЗЕМЛЁЙ (raycast вниз) / ALTITUDE ABOVE GROUND

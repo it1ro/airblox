@@ -5,35 +5,6 @@ import { generateLevel } from "./level-generator";
 export function createScene() {
   const scene = new THREE.Scene();
 
-  // === ГРАДИЕНТНОЕ НЕБО ===
-  const skyGeo = new THREE.SphereGeometry(1000, 32, 32);
-  const skyMat = new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    uniforms: {
-      topColor: { value: new THREE.Color(0x87ceeb) },
-      bottomColor: { value: new THREE.Color(0xffffff) }
-    },
-    vertexShader: `
-      varying vec3 vPos;
-      void main() {
-        vPos = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying vec3 vPos;
-      uniform vec3 topColor;
-      uniform vec3 bottomColor;
-      void main() {
-        float h = normalize(vPos).y;
-        gl_FragColor = vec4(mix(bottomColor, topColor, max(h, 0.0)), 1.0);
-      }
-    `
-  });
-
-  const sky = new THREE.Mesh(skyGeo, skyMat);
-  scene.add(sky);
-
   // === КАМЕРА ===
   const camera = new THREE.PerspectiveCamera(
     70,
@@ -66,3 +37,4 @@ export function createScene() {
 
   return { scene, camera, renderer };
 }
+

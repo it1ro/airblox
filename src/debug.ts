@@ -1,6 +1,7 @@
 // debug.ts
 // ============================================================================
 // DEBUG MODULE FOR AIRBLOX
+import { updateHUD as renderHUD } from "./debug/hud";
 // ----------------------------------------------------------------------------
 // Features:
 //  - HUD overlay for live flight parameters
@@ -186,11 +187,8 @@ export const Debug = {
     console.log("[DBG]", type, event, data);
   },
 
-  updateHUD(values: Record<string, any>) {
+  updateHUD(values: Record<string, string>) {
     if (!this.enabled || !this.hud) return;
-
-    this.hud.textContent = Object.entries(values)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join("\n");
+    renderHUD(this.hud, values);
   }
 };

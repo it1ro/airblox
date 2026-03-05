@@ -8,7 +8,10 @@ import { AudioManager } from "./audio";
 // === HDR LOADER ===
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
-const { scene, camera, renderer, clouds, level } = createScene();
+const { scene, camera, renderer, clouds, level, cleanup } = createScene();
+
+// При выгрузке страницы снимаем слушатели (resize и т.д.)
+window.addEventListener("beforeunload", () => cleanup());
 const airplane = createAirplane();
 scene.add(airplane);
 

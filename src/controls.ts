@@ -87,6 +87,52 @@ export function createControls(
     });
   }
 
+  /** Локальная вспомогательная функция стабилизации по одной оси (шаг A рефакторинга). */
+  function applyStabilizationAxis(params: {
+    axis: "pitch" | "roll";
+    angle: number;
+    angleAbs: number;
+    input: number;
+    speedFactor: number;
+    stabLimit: number;
+    forceLinear: number;
+    forceConst: number;
+    lastStabActiveRef: { current: number };
+  }): number {
+    const { axis, angle, angleAbs, input, speedFactor, stabLimit, forceLinear, forceConst, lastStabActiveRef } = params;
+    const force = computeStabilizationForce(
+      angle,
+      angleAbs,
+      input,
+      stats,
+      speedFactor,
+      stabLimit,
+      forceLinear,
+      forceConst
+    );
+    if (force !== 0) {
+      logStabState(axis, angle, force, "active");
+      lastStabActiveRef.current = performance.now();
+    } else {
+      const reason =
+        input !== 0 ? "disabled_player_input" : "disabled_angle_limit";
+      logStabState(axis, angle, 0, reason);
+      const idleFor = performance.now() - lastStabActiveRef.current;
+      if (idleFor > 1000) {
+        Debug.log("stabilization", "STAB_IDLE", {
+          axis,
+          angle,
+          idleFor,
+          reason:
+            reason === "disabled_player_input"
+              ? "no_stabilization_for_1s_due_to_input"
+              : "no_stabilization_for_1s_due_to_angle"
+        });
+      }
+    }
+    return force;
+  }
+
   function update() {
     const keys = getKeys();
     let pitchInput = 0;
@@ -127,69 +173,31 @@ export function createControls(
     AudioManager.setEngineRPM(1 + stats.speed * 3);
     AudioManager.setWindIntensity(stats.speed * 0.8);
 
-    // === Автостабилизация / Autostabilization (physics + логирование в controls) ===
-    const pitchStabForce = computeStabilizationForce(
-      pitchAngle,
-      pitchAbs,
-      pitchInput,
-      stats,
+    // === Автостабилизация / Autostabilization (локальная applyStabilizationAxis → physics) ===
+    const pitchStabForce = applyStabilizationAxis({
+      axis: "pitch",
+      angle: pitchAngle,
+      angleAbs: pitchAbs,
+      input: pitchInput,
       speedFactor,
-      STAB_LIMIT,
-      1.2,
-      0.1
-    );
-    if (pitchStabForce !== 0) {
-      logStabState("pitch", pitchAngle, pitchStabForce, "active");
-      lastStabActivePitchRef.current = performance.now();
-    } else {
-      const reason =
-        pitchInput !== 0 ? "disabled_player_input" : "disabled_angle_limit";
-      logStabState("pitch", pitchAngle, 0, reason);
-      const idleFor = performance.now() - lastStabActivePitchRef.current;
-      if (idleFor > 1000) {
-        Debug.log("stabilization", "STAB_IDLE", {
-          axis: "pitch",
-          angle: pitchAngle,
-          idleFor,
-          reason:
-            reason === "disabled_player_input"
-              ? "no_stabilization_for_1s_due_to_input"
-              : "no_stabilization_for_1s_due_to_angle"
-        });
-      }
-    }
+      stabLimit: STAB_LIMIT,
+      forceLinear: 1.2,
+      forceConst: 0.1,
+      lastStabActiveRef: lastStabActivePitchRef
+    });
     pitchVelocity -= pitchStabForce;
 
-    const rollStabForce = computeStabilizationForce(
-      rollAngle,
-      rollAbs,
-      rollInput,
-      stats,
+    const rollStabForce = applyStabilizationAxis({
+      axis: "roll",
+      angle: rollAngle,
+      angleAbs: rollAbs,
+      input: rollInput,
       speedFactor,
-      STAB_LIMIT,
-      1.5,
-      0.2
-    );
-    if (rollStabForce !== 0) {
-      logStabState("roll", rollAngle, rollStabForce, "active");
-      lastStabActiveRollRef.current = performance.now();
-    } else {
-      const reason =
-        rollInput !== 0 ? "disabled_player_input" : "disabled_angle_limit";
-      logStabState("roll", rollAngle, 0, reason);
-      const idleFor = performance.now() - lastStabActiveRollRef.current;
-      if (idleFor > 1000) {
-        Debug.log("stabilization", "STAB_IDLE", {
-          axis: "roll",
-          angle: rollAngle,
-          idleFor,
-          reason:
-            reason === "disabled_player_input"
-              ? "no_stabilization_for_1s_due_to_input"
-              : "no_stabilization_for_1s_due_to_angle"
-        });
-      }
-    }
+      stabLimit: STAB_LIMIT,
+      forceLinear: 1.5,
+      forceConst: 0.2,
+      lastStabActiveRef: lastStabActiveRollRef
+    });
     rollVelocity -= rollStabForce;
 
     // === Аномалии стабилизации / Stabilization anomalies ===

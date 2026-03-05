@@ -40,6 +40,14 @@ export function createControls(
 ) {
   const keys = new Set<string>();
 
+  // Переиспользуемые объекты (без аллокаций в update)
+  const forwardVector = new THREE.Vector3(0, 0, 1);
+  const downVector = new THREE.Vector3(0, -1, 0);
+  const raycaster = new THREE.Raycaster();
+  const tempVector = new THREE.Vector3();
+  const tempEuler = new THREE.Euler();
+  const tempQuat = new THREE.Quaternion();
+
   // Клавиши управления / Control keys
   const PITCH_UP = ["w", "ц", "arrowup"];
   const PITCH_DOWN = ["s", "ы", "arrowdown"];
@@ -272,8 +280,8 @@ export function createControls(
     airplane.rotateZ(rollVelocity);
 
     // === Движение вперёд / Forward movement ===
-    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(airplane.quaternion);
-    airplane.position.add(forward.multiplyScalar(stats.speed));
+    tempVector.copy(forwardVector).applyQuaternion(airplane.quaternion).multiplyScalar(stats.speed);
+    airplane.position.add(tempVector);
 
     // === ВРАЩЕНИЕ ПРОПЕЛЛЕРА ===
     if (airplane.userData.propeller) {
@@ -289,12 +297,8 @@ export function createControls(
     let altitude: number | null = null;
 
     if (scene) {
-      const ray = new THREE.Raycaster(
-        airplane.position.clone(),
-        new THREE.Vector3(0, -1, 0)
-      );
-
-      const hits = ray.intersectObjects(scene.children, true);
+      raycaster.set(airplane.position, downVector);
+      const hits = raycaster.intersectObjects(scene.children, true);
       if (hits.length > 0) altitude = hits[0].distance;
     }
 
@@ -307,16 +311,16 @@ export function createControls(
     let relRoll: number | null = null;
 
     if (camera) {
-      const cam = camera as any;
-      const camToPlane = airplane.position.clone().sub(cam.position);
-      distanceToCamera = camToPlane.length();
+      const cam = camera as THREE.PerspectiveCamera;
+      tempVector.copy(airplane.position).sub(cam.position);
+      distanceToCamera = tempVector.length();
 
-      const relativeQuat = cam.quaternion.clone().invert().multiply(airplane.quaternion);
-      const relEuler = new THREE.Euler().setFromQuaternion(relativeQuat);
+      tempQuat.copy(cam.quaternion).invert().multiply(airplane.quaternion);
+      tempEuler.setFromQuaternion(tempQuat);
 
-      relPitch = relEuler.x;
-      relYaw = relEuler.y;
-      relRoll = relEuler.z;
+      relPitch = tempEuler.x;
+      relYaw = tempEuler.y;
+      relRoll = tempEuler.z;
     }
 
     // ========================================================================

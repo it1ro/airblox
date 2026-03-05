@@ -29,12 +29,17 @@ export function createScene() {
   document.body.appendChild(renderer.domElement);
 
   // === РЕСАЙЗ ===
-  window.addEventListener("resize", () => {
+  const onResize = (): void => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+  };
+  window.addEventListener("resize", onResize);
 
-  return { scene, camera, renderer, clouds };
+  const cleanup = (): void => {
+    window.removeEventListener("resize", onResize);
+  };
+
+  return { scene, camera, renderer, clouds, cleanup };
 }
 

@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { AirplaneStats } from "./airplanes";
+import { AudioManager } from "./audio";
+
 import { Debug } from "./debug";
 
 // Логируются / Logged:
@@ -97,6 +99,15 @@ export function createControls(
 
     const speedFactor = stats.speed * 2.0;
     const STAB_LIMIT = Math.PI * 0.25; // 45°
+
+
+
+    // RPM двигателя = скорость самолёта * коэффициент
+    AudioManager.setEngineRPM(1 + stats.speed * 3);
+
+    // Шум ветра = скорость самолёта
+    AudioManager.setWindIntensity(stats.speed * 0.8);
+
 
     // Вспомогательная функция логирования активности стабилизатора
     // Helper for detailed stabilization logging

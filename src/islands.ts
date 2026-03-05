@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { LevelDefinition } from "./levels";
 
 export function createIsland(level: LevelDefinition): THREE.Group {
   const island = new THREE.Group();

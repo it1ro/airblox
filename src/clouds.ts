@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { LevelDefinition } from "./levels";
 
 export function createCloud(level: LevelDefinition): THREE.Group {
   const cloud = new THREE.Group();

@@ -3,12 +3,30 @@ import { createScene } from "./scene";
 import { createAirplane } from "./airplane";
 import { createControls } from "./controls";
 import { LIGHT_FIGHTER } from "./airplanes";
+import { AudioManager } from "./audio";
+
+// === HDR LOADER ===
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
 const { scene, camera, renderer } = createScene();
 const airplane = createAirplane();
 scene.add(airplane);
 
 const controls = createControls(airplane, LIGHT_FIGHTER, scene, camera);
+
+AudioManager.init();
+
+// === HDR ENVIRONMENT ===
+new RGBELoader().load("/hdr/sky.hdr", (texture) => {
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.physicallyCorrectLights = true;
+
+  scene.environment = texture;   // освещение
+  scene.background = texture;    // фон
+});
 
 function loop() {
   requestAnimationFrame(loop);
@@ -38,3 +56,5 @@ function loop() {
 }
 
 loop();
+
+

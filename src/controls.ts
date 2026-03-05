@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import { AirplaneStats } from "./airplanes";
 import { AudioManager } from "./audio";
-
 import { Debug } from "./debug";
+import { updateInertia, applyDamping } from "./physics/flight-model";
+import { computeStabilizationForce } from "./physics/stabilization";
+import { getKeys, subscribe as subscribeKeyboard } from "./input/keyboard-input";
 
 // Логируются / Logged:
 //  - ввод игрока (pitch/roll) 
@@ -32,89 +34,12 @@ import { Debug } from "./debug";
 //      но достаточно редко, чтобы не засорять лог лишними данными.
 // ============================================================================
 
-/** Параметры одной оси стабилизации (pitch или roll). */
-interface StabilizationAxisParams {
-  axis: "pitch" | "roll";
-  angle: number;
-  angleAbs: number;
-  input: number;
-  stats: AirplaneStats;
-  speedFactor: number;
-  stabLimit: number;
-  forceLinear: number;
-  forceConst: number;
-  lastStabActiveRef: { current: number };
-  logStabState: (
-    axis: "pitch" | "roll",
-    angle: number,
-    appliedForce: number,
-    reason: string
-  ) => void;
-}
-
-/**
- * Вычисляет и применяет стабилизацию по одной оси (pitch или roll).
- * Возвращает величину коррекции скорости вращения (вычитается из velocity).
- * Логирование и обновление lastStabActive выполняет внутри.
- */
-function applyStabilizationAxis(params: StabilizationAxisParams): number {
-  const {
-    axis,
-    angle,
-    angleAbs,
-    input,
-    stats,
-    speedFactor,
-    stabLimit,
-    forceLinear,
-    forceConst,
-    lastStabActiveRef,
-    logStabState
-  } = params;
-
-  if (input === 0) {
-    if (angleAbs < stabLimit) {
-      const force = stats.autoLevel * (angleAbs * forceLinear + forceConst);
-      const applied = angle * force * speedFactor;
-      logStabState(axis, angle, applied, "active");
-      lastStabActiveRef.current = performance.now();
-      return applied;
-    } else {
-      logStabState(axis, angle, 0, "disabled_angle_limit");
-      const idleFor = performance.now() - lastStabActiveRef.current;
-      if (idleFor > 1000) {
-        Debug.log("stabilization", "STAB_IDLE", {
-          axis,
-          angle,
-          idleFor,
-          reason: "no_stabilization_for_1s_due_to_angle"
-        });
-      }
-      return 0;
-    }
-  } else {
-    logStabState(axis, angle, 0, "disabled_player_input");
-    const idleFor = performance.now() - lastStabActiveRef.current;
-    if (idleFor > 1000) {
-      Debug.log("stabilization", "STAB_IDLE", {
-        axis,
-        angle,
-        idleFor,
-        reason: "no_stabilization_for_1s_due_to_input"
-      });
-    }
-    return 0;
-  }
-}
-
 export function createControls(
   airplane: THREE.Object3D,
   stats: AirplaneStats,
   scene?: THREE.Scene,
   camera?: THREE.Camera
 ) {
-  const keys = new Set<string>();
-
   // Переиспользуемые объекты (без аллокаций в update)
   const forwardVector = new THREE.Vector3(0, 0, 1);
   const downVector = new THREE.Vector3(0, -1, 0);
@@ -133,29 +58,35 @@ export function createControls(
   let pitchVelocity = 0;
   let rollVelocity = 0;
 
-  // Последняя активность стабилизации по каждой оси (refs для applyStabilizationAxis)
-  // Last time stabilization was actively applied on each axis (refs for applyStabilizationAxis)
+  // Последняя активность стабилизации по каждой оси
   const lastStabActivePitchRef = { current: performance.now() };
   const lastStabActiveRollRef = { current: performance.now() };
 
   Debug.init();
 
-  // Логирование нажатий клавиш / Key input logging
-  window.addEventListener("keydown", e => {
-    const key = e.key.toLowerCase();
-    keys.add(key);
-    Debug.log("input", "KEY_DOWN", { key });
-  });
-
-  window.addEventListener("keyup", e => {
-    const key = e.key.toLowerCase();
-    keys.delete(key);
-    Debug.log("input", "KEY_UP", { key });
+  subscribeKeyboard((key, down) => {
+    if (down) Debug.log("input", "KEY_DOWN", { key });
+    else Debug.log("input", "KEY_UP", { key });
   });
 
   let lastStateLog = 0;
 
+  function logStabState(
+    axis: "pitch" | "roll",
+    angle: number,
+    appliedForce: number,
+    reason: string
+  ) {
+    Debug.log("stabilization", "STAB_EVENT", {
+      axis,
+      angle,
+      appliedForce,
+      reason
+    });
+  }
+
   function update() {
+    const keys = getKeys();
     let pitchInput = 0;
     let rollInput = 0;
 
@@ -169,9 +100,16 @@ export function createControls(
     if (pitchInput !== 0) Debug.log("input", "PITCH_INPUT", { pitchInput });
     if (rollInput !== 0) Debug.log("input", "ROLL_INPUT", { rollInput });
 
-    // Инерция вращения / Angular inertia
-    pitchVelocity += pitchInput * stats.pitchAccel;
-    rollVelocity += rollInput * stats.rollAccel;
+    // Инерция вращения / Angular inertia (physics)
+    const afterInertia = updateInertia(
+      pitchInput,
+      rollInput,
+      pitchVelocity,
+      rollVelocity,
+      stats
+    );
+    pitchVelocity = afterInertia.pitchVelocity;
+    rollVelocity = afterInertia.rollVelocity;
 
     // Текущие углы самолёта / Current airplane angles
     const pitchAngle = airplane.rotation.x;
@@ -183,62 +121,74 @@ export function createControls(
     const speedFactor = stats.speed * 2.0;
     const STAB_LIMIT = Math.PI * 0.25; // 45°
 
-
-
     // RPM двигателя = скорость самолёта * коэффициент
     AudioManager.setEngineRPM(1 + stats.speed * 3);
-
-    // Шум ветра = скорость самолёта
     AudioManager.setWindIntensity(stats.speed * 0.8);
 
-
-    // Вспомогательная функция логирования активности стабилизатора
-    // Helper for detailed stabilization logging
-    function logStabState(
-      axis: "pitch" | "roll",
-      angle: number,
-      appliedForce: number,
-      reason: string
-    ) {
-      Debug.log("stabilization", "STAB_EVENT", {
-        axis,
-        angle,
-        appliedForce,
-        reason
-      });
+    // === Автостабилизация / Autostabilization (physics + логирование в controls) ===
+    const pitchStabForce = computeStabilizationForce(
+      pitchAngle,
+      pitchAbs,
+      pitchInput,
+      stats,
+      speedFactor,
+      STAB_LIMIT,
+      1.2,
+      0.1
+    );
+    if (pitchStabForce !== 0) {
+      logStabState("pitch", pitchAngle, pitchStabForce, "active");
+      lastStabActivePitchRef.current = performance.now();
+    } else {
+      const reason =
+        pitchInput !== 0 ? "disabled_player_input" : "disabled_angle_limit";
+      logStabState("pitch", pitchAngle, 0, reason);
+      const idleFor = performance.now() - lastStabActivePitchRef.current;
+      if (idleFor > 1000) {
+        Debug.log("stabilization", "STAB_IDLE", {
+          axis: "pitch",
+          angle: pitchAngle,
+          idleFor,
+          reason:
+            reason === "disabled_player_input"
+              ? "no_stabilization_for_1s_due_to_input"
+              : "no_stabilization_for_1s_due_to_angle"
+        });
+      }
     }
+    pitchVelocity -= pitchStabForce;
 
-    // === Автостабилизация / Autostabilization ===
-    // Работает только при малых углах, чтобы избежать "отпружинивания"
-    // Works only at small angles to avoid "spring back"
-
-    pitchVelocity -= applyStabilizationAxis({
-      axis: "pitch",
-      angle: pitchAngle,
-      angleAbs: pitchAbs,
-      input: pitchInput,
+    const rollStabForce = computeStabilizationForce(
+      rollAngle,
+      rollAbs,
+      rollInput,
       stats,
       speedFactor,
-      stabLimit: STAB_LIMIT,
-      forceLinear: 1.2,
-      forceConst: 0.1,
-      lastStabActiveRef: lastStabActivePitchRef,
-      logStabState
-    });
-
-    rollVelocity -= applyStabilizationAxis({
-      axis: "roll",
-      angle: rollAngle,
-      angleAbs: rollAbs,
-      input: rollInput,
-      stats,
-      speedFactor,
-      stabLimit: STAB_LIMIT,
-      forceLinear: 1.5,
-      forceConst: 0.2,
-      lastStabActiveRef: lastStabActiveRollRef,
-      logStabState
-    });
+      STAB_LIMIT,
+      1.5,
+      0.2
+    );
+    if (rollStabForce !== 0) {
+      logStabState("roll", rollAngle, rollStabForce, "active");
+      lastStabActiveRollRef.current = performance.now();
+    } else {
+      const reason =
+        rollInput !== 0 ? "disabled_player_input" : "disabled_angle_limit";
+      logStabState("roll", rollAngle, 0, reason);
+      const idleFor = performance.now() - lastStabActiveRollRef.current;
+      if (idleFor > 1000) {
+        Debug.log("stabilization", "STAB_IDLE", {
+          axis: "roll",
+          angle: rollAngle,
+          idleFor,
+          reason:
+            reason === "disabled_player_input"
+              ? "no_stabilization_for_1s_due_to_input"
+              : "no_stabilization_for_1s_due_to_angle"
+        });
+      }
+    }
+    rollVelocity -= rollStabForce;
 
     // === Аномалии стабилизации / Stabilization anomalies ===
     if (Math.abs(pitchVelocity) > 0.04) {
@@ -277,9 +227,10 @@ export function createControls(
     pitchVelocity = THREE.MathUtils.clamp(pitchVelocity, -0.05, 0.05);
     rollVelocity = THREE.MathUtils.clamp(rollVelocity, -0.06, 0.06);
 
-    // Затухание / Damping
-    pitchVelocity *= stats.pitchDamping;
-    rollVelocity *= stats.rollDamping;
+    // Затухание / Damping (physics)
+    const afterDamping = applyDamping(pitchVelocity, rollVelocity, stats);
+    pitchVelocity = afterDamping.pitchVelocity;
+    rollVelocity = afterDamping.rollVelocity;
 
     // Лог демпфирования / Damping log
     Debug.log("damping", "DAMPING", {

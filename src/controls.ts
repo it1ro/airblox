@@ -49,12 +49,12 @@ export function createControls(
   const tempEuler = new THREE.Euler();
   const tempQuat = new THREE.Quaternion();
 
-  // Схема управления: A — крен влево, D — вправо, W/S — тангаж вверх/вниз
-  // Control keys: A — roll left, D — roll right, W/S — pitch up/down
+  // Схема управления: A — правое крыло вверх, D — левое крыло вверх, W/S — тангаж
+  // Control keys: A — right wing up, D — left wing up, W/S — pitch up/down
   const PITCH_UP = ["w", "ц", "arrowup"];
   const PITCH_DOWN = ["s", "ы", "arrowdown"];
-  const ROLL_LEFT = ["a", "ф", "arrowleft"];
-  const ROLL_RIGHT = ["d", "в", "arrowright"];
+  const ROLL_RIGHT_WING_UP = ["a", "ф", "arrowleft"];   // A — правое крыло вверх
+  const ROLL_LEFT_WING_UP = ["d", "в", "arrowright"];  // D — левое крыло вверх
 
   // Скорости вращения самолёта / Angular velocities
   let pitchVelocity = 0;
@@ -141,8 +141,8 @@ export function createControls(
     // Ввод игрока / Player input
     if (PITCH_UP.some(k => keys.has(k))) pitchInput += 1;
     if (PITCH_DOWN.some(k => keys.has(k))) pitchInput -= 1;
-    if (ROLL_LEFT.some(k => keys.has(k))) rollInput += 1;
-    if (ROLL_RIGHT.some(k => keys.has(k))) rollInput -= 1;
+    if (ROLL_RIGHT_WING_UP.some(k => keys.has(k))) rollInput += 1;   // A → правое крыло вверх
+    if (ROLL_LEFT_WING_UP.some(k => keys.has(k))) rollInput -= 1;     // D → левое крыло вверх
 
     // Логируем ввод / Log input
     if (pitchInput !== 0) Debug.log("input", "PITCH_INPUT", { pitchInput });
@@ -198,7 +198,8 @@ export function createControls(
       forceConst: 0.2,
       lastStabActiveRef: lastStabActiveRollRef
     });
-    rollVelocity -= rollStabForce;
+    // Плюс: т.к. крен применяется как rotateZ(-rollVelocity), стабилизация должна увеличивать rollVelocity при положительном угле
+    rollVelocity += rollStabForce;
 
     // === Аномалии стабилизации / Stabilization anomalies ===
     if (Math.abs(pitchVelocity) > 0.04) {
@@ -267,13 +268,10 @@ export function createControls(
       });
     }
 
-    // Применяем вращение / Apply rotation
+    // Применяем вращение / Apply rotation (углы не ограничиваем — полная свобода крена и тангажа)
     airplane.rotateX(pitchVelocity);
-    airplane.rotateZ(rollVelocity);
-
-    // Ограничение углов по конфигу AirplaneStats
-    airplane.rotation.x = THREE.MathUtils.clamp(airplane.rotation.x, -stats.maxPitch, stats.maxPitch);
-    airplane.rotation.z = THREE.MathUtils.clamp(airplane.rotation.z, -stats.maxRoll, stats.maxRoll);
+    // Инвертировано: положительный rollInput (A) → правое крыло вверх (против часовой сзади)
+    airplane.rotateZ(-rollVelocity);
 
     // === Движение вперёд / Forward movement ===
     tempVector.copy(forwardVector).applyQuaternion(airplane.quaternion).multiplyScalar(stats.speed);

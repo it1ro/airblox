@@ -5,6 +5,7 @@ import { Debug } from "./debug";
 import { updateInertia, applyDamping } from "./physics/flight-model";
 import { computeStabilizationForce } from "./physics/stabilization";
 import { getKeys, subscribe as subscribeKeyboard } from "./input/keyboard-input";
+import type { AirplaneUserData, CameraLike } from "./types";
 
 // Логируются / Logged:
 //  - ввод игрока (pitch/roll) 
@@ -266,10 +267,11 @@ export function createControls(
     airplane.position.add(tempVector);
 
     // === ВРАЩЕНИЕ ПРОПЕЛЛЕРА ===
-    if (airplane.userData.propeller) {
+    const planeData = airplane.userData as AirplaneUserData;
+    if (planeData.propeller) {
       // скорость вращения зависит от скорости самолёта
       const spin = stats.speed * 20; // можно увеличить/уменьшить
-      airplane.userData.propeller.rotation.z += spin;
+      planeData.propeller.rotation.z += spin;
     }
 
 
@@ -293,7 +295,7 @@ export function createControls(
     let relRoll: number | null = null;
 
     if (camera) {
-      const cam = camera as THREE.PerspectiveCamera;
+      const cam = camera as unknown as CameraLike;
       tempVector.copy(airplane.position).sub(cam.position);
       distanceToCamera = tempVector.length();
 

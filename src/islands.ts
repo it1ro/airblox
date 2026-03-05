@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { LevelDefinition } from "./levels";
+import type { IslandUserData } from "./types";
 
 export function createIsland(level: LevelDefinition): THREE.Group {
   const island = new THREE.Group();
-  island.userData.island = true;
+  (island.userData as IslandUserData).island = true;
 
   const mat = new THREE.MeshStandardMaterial({
     color: level.islandColor

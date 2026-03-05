@@ -2,6 +2,7 @@
 // ============================================================================
 // DEBUG MODULE FOR AIRBLOX
 import { updateHUD as renderHUD } from "./debug/hud";
+import type { DebugLogEntry } from "./types";
 // ----------------------------------------------------------------------------
 // Features:
 //  - HUD overlay for live flight parameters
@@ -17,7 +18,7 @@ import { updateHUD as renderHUD } from "./debug/hud";
 export const Debug = {
   enabled: true,             // global switch for debug system
   loggingEnabled: true,      // controls whether logs are recorded
-  logs: [] as any[],         // ring buffer
+  logs: [] as DebugLogEntry[],         // ring buffer
   hud: null as HTMLDivElement | null,
   toast: null as HTMLDivElement | null,
 
@@ -169,7 +170,7 @@ export const Debug = {
   },
 
   // Main logging function
-  log(type: string, event: string, data: any = {}) {
+  log(type: string, event: string, data: Record<string, unknown> = {}) {
     if (!this.enabled) return;
     if (!this.loggingEnabled) return;
     if (!this.logConfig[type]) return;

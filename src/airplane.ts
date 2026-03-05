@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { AirplaneUserData } from "./types";
 
 export function createAirplane() {
   const plane = new THREE.Group();
@@ -86,7 +87,7 @@ export function createAirplane() {
   }
 
   plane.add(propellerGroup);
-  plane.userData.propeller = propellerGroup;
+  (plane.userData as AirplaneUserData).propeller = propellerGroup;
 
   // === ПОЗИЦИЯ В МИРЕ ===
   plane.position.set(0, 2, 0);

@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { LevelDefinition } from "./levels";
+import type { CloudUserData } from "./types";
 
 export function createCloud(level: LevelDefinition): THREE.Group {
   const cloud = new THREE.Group();
-  cloud.userData.cloud = true;
+  (cloud.userData as CloudUserData).cloud = true;
 
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
 

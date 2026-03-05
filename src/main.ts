@@ -8,11 +8,14 @@ import { AudioManager } from "./audio";
 // === HDR LOADER ===
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
-const { scene, camera, renderer } = createScene();
+const { scene, camera, renderer, clouds } = createScene();
 const airplane = createAirplane();
 scene.add(airplane);
 
 const controls = createControls(airplane, LIGHT_FIGHTER, scene, camera);
+
+const cameraOffset = new THREE.Vector3(0, 3, -8);
+const desiredPos = new THREE.Vector3();
 
 AudioManager.init();
 
@@ -35,22 +38,21 @@ function loop() {
   controls.update();
 
   // === КАМЕРА ТРЕТЬЕГО ЛИЦА ===
-  const desiredPos = airplane.position.clone().add(new THREE.Vector3(0, 3, -8));
+  desiredPos.copy(airplane.position).add(cameraOffset);
   camera.position.lerp(desiredPos, 0.1);
   camera.lookAt(airplane.position);
 
   // === ДВИЖЕНИЕ ОБЛАКОВ ===
-  scene.children.forEach(obj => {
-    if (obj.userData.cloud) {
-      obj.position.z += 0.05;
+  for (let i = 0; i < clouds.length; i++) {
+    const obj = clouds[i];
+    obj.position.z += 0.05;
 
-      if (obj.position.z > 150) {
-        obj.position.z = -150;
-        obj.position.x = (Math.random() - 0.5) * 300;
-        obj.position.y = 5 + Math.random() * 15;
-      }
+    if (obj.position.z > 150) {
+      obj.position.z = -150;
+      obj.position.x = (Math.random() - 0.5) * 300;
+      obj.position.y = 5 + Math.random() * 15;
     }
-  });
+  }
 
   renderer.render(scene, camera);
 }

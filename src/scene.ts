@@ -21,7 +21,7 @@ export function createScene() {
 
   // === ВЫБОР УРОВНЯ ===
   const level = LEVELS[0]; // Tropical Isles (или любой другой)
-  generateLevel(scene, level);
+  const clouds = generateLevel(scene, level);
 
   // === РЕНДЕРЕР ===
   const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -35,6 +35,6 @@ export function createScene() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { scene, camera, renderer };
+  return { scene, camera, renderer, clouds };
 }
 

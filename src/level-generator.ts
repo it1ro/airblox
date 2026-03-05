@@ -3,7 +3,9 @@ import { LevelDefinition } from "./levels";
 import { createCloud } from "./clouds";
 import { createIsland } from "./islands";
 
-export function generateLevel(scene: THREE.Scene, level: LevelDefinition) {
+export function generateLevel(scene: THREE.Scene, level: LevelDefinition): THREE.Object3D[] {
+  const clouds: THREE.Object3D[] = [];
+
   // Океан
   const ocean = new THREE.Mesh(
     new THREE.PlaneGeometry(2000, 2000),
@@ -16,6 +18,7 @@ export function generateLevel(scene: THREE.Scene, level: LevelDefinition) {
   // Облака
   for (let i = 0; i < level.cloudCount; i++) {
     const cloud = createCloud(level);
+    clouds.push(cloud);
     scene.add(cloud);
   }
 
@@ -24,4 +27,6 @@ export function generateLevel(scene: THREE.Scene, level: LevelDefinition) {
     const island = createIsland(level);
     scene.add(island);
   }
+
+  return clouds;
 }

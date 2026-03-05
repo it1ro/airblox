@@ -49,11 +49,12 @@ export function createControls(
   const tempEuler = new THREE.Euler();
   const tempQuat = new THREE.Quaternion();
 
-  // Клавиши управления / Control keys
+  // Схема управления: A — крен влево, D — вправо, W/S — тангаж вверх/вниз
+  // Control keys: A — roll left, D — roll right, W/S — pitch up/down
   const PITCH_UP = ["w", "ц", "arrowup"];
   const PITCH_DOWN = ["s", "ы", "arrowdown"];
-  const ROLL_LEFT = ["d", "в", "arrowright"];
-  const ROLL_RIGHT = ["a", "ф", "arrowleft"];
+  const ROLL_LEFT = ["a", "ф", "arrowleft"];
+  const ROLL_RIGHT = ["d", "в", "arrowright"];
 
   // Скорости вращения самолёта / Angular velocities
   let pitchVelocity = 0;

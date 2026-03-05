@@ -263,6 +263,10 @@ export function createControls(
     airplane.rotateX(pitchVelocity);
     airplane.rotateZ(rollVelocity);
 
+    // Ограничение углов по конфигу AirplaneStats
+    airplane.rotation.x = THREE.MathUtils.clamp(airplane.rotation.x, -stats.maxPitch, stats.maxPitch);
+    airplane.rotation.z = THREE.MathUtils.clamp(airplane.rotation.z, -stats.maxRoll, stats.maxRoll);
+
     // === Движение вперёд / Forward movement ===
     tempVector.copy(forwardVector).applyQuaternion(airplane.quaternion).multiplyScalar(stats.speed);
     airplane.position.add(tempVector);

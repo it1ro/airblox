@@ -6,9 +6,9 @@ import { createIsland } from "./islands";
 export function generateLevel(scene: THREE.Scene, level: LevelDefinition): THREE.Object3D[] {
   const clouds: THREE.Object3D[] = [];
 
-  // Океан
+  // Океан (размер по горизонтали: ±worldSize)
   const ocean = new THREE.Mesh(
-    new THREE.PlaneGeometry(2000, 2000),
+    new THREE.PlaneGeometry(level.worldSize * 2, level.worldSize * 2),
     new THREE.MeshStandardMaterial({ color: level.oceanColor })
   );
   ocean.rotation.x = -Math.PI / 2;

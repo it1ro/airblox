@@ -40,6 +40,6 @@ export function createScene() {
     window.removeEventListener("resize", onResize);
   };
 
-  return { scene, camera, renderer, clouds, cleanup };
+  return { scene, camera, renderer, clouds, level, cleanup };
 }
 

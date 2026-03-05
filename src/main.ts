@@ -8,7 +8,7 @@ import { AudioManager } from "./audio";
 // === HDR LOADER ===
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
-const { scene, camera, renderer, clouds } = createScene();
+const { scene, camera, renderer, clouds, level } = createScene();
 const airplane = createAirplane();
 scene.add(airplane);
 
@@ -62,10 +62,12 @@ function loop() {
     const obj = clouds[i];
     obj.position.z += 0.05;
 
-    if (obj.position.z > 150) {
-      obj.position.z = -150;
-      obj.position.x = (Math.random() - 0.5) * 300;
-      obj.position.y = 5 + Math.random() * 15;
+    if (obj.position.z > level.worldSize) {
+      obj.position.z = -level.worldSize;
+      obj.position.x = (Math.random() - 0.5) * level.worldSize * 2;
+      obj.position.y =
+        level.cloudHeightMin +
+        Math.random() * (level.cloudHeightMax - level.cloudHeightMin);
     }
   }
 

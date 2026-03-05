@@ -17,19 +17,34 @@ const controls = createControls(airplane, LIGHT_FIGHTER, scene, camera);
 const cameraOffset = new THREE.Vector3(0, 3, -8);
 const desiredPos = new THREE.Vector3();
 
-AudioManager.init();
+async function main() {
+  try {
+    await AudioManager.init();
+  } catch (e) {
+    console.error("Audio init failed:", e);
+  }
+}
+
+main();
 
 // === HDR ENVIRONMENT ===
-new RGBELoader().load("/hdr/sky.hdr", (texture) => {
-  texture.mapping = THREE.EquirectangularReflectionMapping;
+new RGBELoader().load(
+  "/hdr/sky.hdr",
+  (texture) => {
+    texture.mapping = THREE.EquirectangularReflectionMapping;
 
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
-  renderer.physicallyCorrectLights = true;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.physicallyCorrectLights = true;
 
-  scene.environment = texture;   // освещение
-  scene.background = texture;    // фон
-});
+    scene.environment = texture;   // освещение
+    scene.background = texture;    // фон
+  },
+  undefined,
+  (error) => {
+    console.error("Ошибка загрузки HDR:", error);
+  }
+);
 
 function loop() {
   requestAnimationFrame(loop);

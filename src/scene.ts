@@ -36,7 +36,7 @@ export function createScene() {
   };
   window.addEventListener("resize", onResize);
 
-  /** Снимает слушатели (resize). При смене уровня также вызывать disposeObject для удаляемых объектов. */
+  /** Снимает слушатели (resize). При смене уровня — освобождать geometry/material/texture удаляемых объектов. */
   const cleanup = (): void => {
     window.removeEventListener("resize", onResize);
   };

@@ -2,7 +2,11 @@ import * as THREE from "three";
 import { AirplaneStats } from "./airplanes";
 import { AudioManager } from "./audio";
 import { Debug } from "./debug";
-import { updateInertia, applyDamping } from "./physics/flight-model";
+import {
+  applyDampingInto,
+  updateInertiaInto,
+  type AngularVelocities
+} from "./physics/flight-model";
 import { computeStabilizationForce } from "./physics/stabilization";
 import { getKeys, subscribe as subscribeKeyboard } from "./input/keyboard-input";
 import type { CameraLike } from "./types";
@@ -55,10 +59,27 @@ export function createControls(
   const PITCH_DOWN = ["s", "ы", "arrowdown"];
   const ROLL_RIGHT_WING_UP = ["a", "ф", "arrowleft"];   // A — правое крыло вверх
   const ROLL_LEFT_WING_UP = ["d", "в", "arrowright"];  // D — левое крыло вверх
+  const YAW_LEFT = ["q", "й"];
+  const YAW_RIGHT = ["e", "у"];
+
+  function anyKeyPressed(keys: Set<string>, keyList: readonly string[]): boolean {
+    for (let i = 0; i < keyList.length; i++) {
+      if (keys.has(keyList[i])) return true;
+    }
+    return false;
+  }
 
   // Скорости вращения самолёта / Angular velocities
   let pitchVelocity = 0;
   let rollVelocity = 0;
+  let yawVelocity = 0;
+
+  // Переиспользуемый out-объект для чистых функций physics (без аллокаций в update)
+  const angularOut: AngularVelocities = {
+    pitchVelocity: 0,
+    rollVelocity: 0,
+    yawVelocity: 0
+  };
 
   // Последняя активность стабилизации по каждой оси
   const lastStabActivePitchRef = { current: performance.now() };
@@ -137,30 +158,39 @@ export function createControls(
     const keys = getKeys();
     let pitchInput = 0;
     let rollInput = 0;
+    let yawInput = 0;
 
     // Ввод игрока / Player input
-    if (PITCH_UP.some(k => keys.has(k))) pitchInput += 1;
-    if (PITCH_DOWN.some(k => keys.has(k))) pitchInput -= 1;
-    if (ROLL_RIGHT_WING_UP.some(k => keys.has(k))) rollInput += 1;   // A → правое крыло вверх
-    if (ROLL_LEFT_WING_UP.some(k => keys.has(k))) rollInput -= 1;     // D → левое крыло вверх
+    if (anyKeyPressed(keys, PITCH_UP)) pitchInput += 1;
+    if (anyKeyPressed(keys, PITCH_DOWN)) pitchInput -= 1;
+    if (anyKeyPressed(keys, ROLL_RIGHT_WING_UP)) rollInput += 1;   // A → правое крыло вверх
+    if (anyKeyPressed(keys, ROLL_LEFT_WING_UP)) rollInput -= 1;     // D → левое крыло вверх
+    if (anyKeyPressed(keys, YAW_RIGHT)) yawInput -= 1;              // E → нос вправо (rotateY отрицательный)
+    if (anyKeyPressed(keys, YAW_LEFT)) yawInput += 1;               // Q → нос влево (rotateY положительный)
 
     // Логируем ввод / Log input
     if (pitchInput !== 0) Debug.log("input", "PITCH_INPUT", { pitchInput });
     if (rollInput !== 0) Debug.log("input", "ROLL_INPUT", { rollInput });
+    if (yawInput !== 0) Debug.log("input", "YAW_INPUT", { yawInput });
 
     // Инерция вращения / Angular inertia (physics)
-    const afterInertia = updateInertia(
+    updateInertiaInto(
+      angularOut,
       pitchInput,
       rollInput,
+      yawInput,
       pitchVelocity,
       rollVelocity,
+      yawVelocity,
       stats
     );
-    pitchVelocity = afterInertia.pitchVelocity;
-    rollVelocity = afterInertia.rollVelocity;
+    pitchVelocity = angularOut.pitchVelocity;
+    rollVelocity = angularOut.rollVelocity;
+    yawVelocity = angularOut.yawVelocity;
 
     // Текущие углы самолёта / Current airplane angles
     const pitchAngle = airplane.rotation.x;
+    const yawAngle = airplane.rotation.y;
     const rollAngle = airplane.rotation.z;
 
     const pitchAbs = Math.abs(pitchAngle);
@@ -235,19 +265,35 @@ export function createControls(
     }
 
     // Ограничение скорости вращения / Clamp angular velocities
-    pitchVelocity = THREE.MathUtils.clamp(pitchVelocity, -0.05, 0.05);
-    rollVelocity = THREE.MathUtils.clamp(rollVelocity, -0.06, 0.06);
+    pitchVelocity = THREE.MathUtils.clamp(
+      pitchVelocity,
+      -(stats.maxPitchRate ?? 0.05),
+      stats.maxPitchRate ?? 0.05
+    );
+    rollVelocity = THREE.MathUtils.clamp(
+      rollVelocity,
+      -(stats.maxRollRate ?? 0.06),
+      stats.maxRollRate ?? 0.06
+    );
+    yawVelocity = THREE.MathUtils.clamp(
+      yawVelocity,
+      -(stats.maxYawRate ?? 0.05),
+      stats.maxYawRate ?? 0.05
+    );
 
     // Затухание / Damping (physics)
-    const afterDamping = applyDamping(pitchVelocity, rollVelocity, stats);
-    pitchVelocity = afterDamping.pitchVelocity;
-    rollVelocity = afterDamping.rollVelocity;
+    applyDampingInto(angularOut, pitchVelocity, rollVelocity, yawVelocity, stats);
+    pitchVelocity = angularOut.pitchVelocity;
+    rollVelocity = angularOut.rollVelocity;
+    yawVelocity = angularOut.yawVelocity;
 
     // Лог демпфирования / Damping log
     Debug.log("damping", "DAMPING", {
       pitchVelocity,
       rollVelocity,
+      yawVelocity,
       pitchDamping: stats.pitchDamping,
+      yawDamping: stats.yawDamping,
       rollDamping: stats.rollDamping
     });
 
@@ -270,6 +316,7 @@ export function createControls(
 
     // Применяем вращение / Apply rotation (углы не ограничиваем — полная свобода крена и тангажа)
     airplane.rotateX(pitchVelocity);
+    airplane.rotateY(yawVelocity);
     // Инвертировано: положительный rollInput (A) → правое крыло вверх (против часовой сзади)
     airplane.rotateZ(-rollVelocity);
 
@@ -316,8 +363,10 @@ export function createControls(
     if (now - lastStateLog > 200) {
       Debug.log("stateSnapshot", "STATE", {
         pitchAngle,
+        yawAngle,
         rollAngle,
         pitchVelocity,
+        yawVelocity,
         rollVelocity,
         altitude,
         distanceToCamera,
@@ -338,8 +387,10 @@ export function createControls(
     // ========================================================================
     Debug.updateHUD({
       pitchDeg: (pitchAngle * 180 / Math.PI).toFixed(1),
+      yawDeg: (yawAngle * 180 / Math.PI).toFixed(1),
       rollDeg: (rollAngle * 180 / Math.PI).toFixed(1),
       pitchVel: pitchVelocity.toFixed(4),
+      yawVel: yawVelocity.toFixed(4),
       rollVel: rollVelocity.toFixed(4),
       altitude: altitude !== null ? altitude.toFixed(2) : "N/A",
       distCam: distanceToCamera !== null ? distanceToCamera.toFixed(2) : "N/A",

@@ -7,6 +7,10 @@ import {
   updateInertiaInto,
   type AngularVelocities
 } from "./physics/flight-model";
+import {
+  computeAxisInputSpringDamper,
+  AIM_CONTROLLER_DEFAULTS
+} from "./physics/aim-controller";
 import { computeStabilizationForce } from "./physics/stabilization";
 import { getKeys, subscribe as subscribeKeyboard } from "./input/keyboard-input";
 import { getMouseDeltas, type MouseDeltas } from "./input/mouse-input";
@@ -16,6 +20,12 @@ import type { CameraLike } from "./types";
 export interface ReticleState {
   x_ndc: number;
   y_ndc: number;
+}
+
+/** Ошибки наведения в локальном базисе самолёта (радианы), с учётом deadzone. */
+export interface AimErrors {
+  yawErrorRad: number;
+  pitchErrorRad: number;
 }
 
 // Логируются / Logged:
@@ -59,6 +69,8 @@ export interface ReticleParams {
 const DEFAULT_RETICLE_SENSITIVITY = 1;
 const DEFAULT_CLAMP_RADIUS_NDC = 0.6;
 const DEFAULT_RETURN_TO_CENTER_SPEED = 0.01;
+/** Deadzone по углу ошибки наведения (радианы), ~1°. */
+const AIM_ERROR_DEADZONE_RAD = (1 * Math.PI) / 180;
 
 export function createControls(
   airplane: THREE.Object3D,
@@ -78,6 +90,13 @@ export function createControls(
   const tempQuat = new THREE.Quaternion();
   /** Направление прицеливания в мировых координатах (луч от камеры через перекрестие). */
   const aimDir_world = new THREE.Vector3(0, 0, 1);
+  /** Локальный базис самолёта (forward/right/up в мире) для расчёта ошибок наведения. */
+  const planeForward = new THREE.Vector3(0, 0, 1);
+  const planeRight = new THREE.Vector3(1, 0, 0);
+  const planeUp = new THREE.Vector3(0, 1, 0);
+  /** Текущие ошибки наведения (радианы), с deadzone. */
+  let yawErrorRad = 0;
+  let pitchErrorRad = 0;
 
   // ReticleState: перекрестие в NDC [-1..1], без аллокаций в update
   let reticleX_ndc = 0;
@@ -218,20 +237,77 @@ export function createControls(
       aimDir_world.copy(raycaster.ray.direction).normalize();
     }
 
-    const keys = getKeys();
-    let pitchInput = 0;
-    let rollInput = 0;
-    let yawInput = 0;
+    // Ошибки yaw/pitch в локальном базисе самолёта (без матриц), с deadzone
+    if (camera) {
+      planeForward.set(0, 0, 1).applyQuaternion(airplane.quaternion);
+      planeRight.set(1, 0, 0).applyQuaternion(airplane.quaternion);
+      planeUp.set(0, 1, 0).applyQuaternion(airplane.quaternion);
+      const lx = planeRight.dot(aimDir_world);
+      const ly = planeUp.dot(aimDir_world);
+      const lz = planeForward.dot(aimDir_world);
+      const rawYawError = Math.atan2(lx, lz);
+      const rawPitchError = -Math.atan2(ly, lz);
+      const deadzone = AIM_ERROR_DEADZONE_RAD;
+      yawErrorRad = Math.abs(rawYawError) < deadzone ? 0 : rawYawError;
+      pitchErrorRad = Math.abs(rawPitchError) < deadzone ? 0 : rawPitchError;
+    } else {
+      yawErrorRad = 0;
+      pitchErrorRad = 0;
+    }
 
-    // Ввод игрока / Player input
-    if (anyKeyPressed(keys, PITCH_UP)) pitchInput += 1;
-    if (anyKeyPressed(keys, PITCH_DOWN)) pitchInput -= 1;
+    const keys = getKeys();
+    // Сырой ввод с клавиатуры (по осям pitch/roll/yaw)
+    let rawPitchKey = 0;
+    let rollInput = 0;
+    let rawYawKey = 0;
+
+    if (anyKeyPressed(keys, PITCH_UP)) rawPitchKey += 1;
+    if (anyKeyPressed(keys, PITCH_DOWN)) rawPitchKey -= 1;
     if (anyKeyPressed(keys, ROLL_RIGHT_WING_UP)) rollInput += 1;   // A → правое крыло вверх
     if (anyKeyPressed(keys, ROLL_LEFT_WING_UP)) rollInput -= 1;     // D → левое крыло вверх
-    if (anyKeyPressed(keys, YAW_RIGHT)) yawInput -= 1;              // E → нос вправо (rotateY отрицательный)
-    if (anyKeyPressed(keys, YAW_LEFT)) yawInput += 1;               // Q → нос влево (rotateY положительный)
+    if (anyKeyPressed(keys, YAW_RIGHT)) rawYawKey -= 1;             // E → нос вправо
+    if (anyKeyPressed(keys, YAW_LEFT)) rawYawKey += 1;              // Q → нос влево
 
-    // Логируем ввод / Log input
+    // 4.3 Микширование с клавиатурой: если игрок жмёт по оси — mouse-aim по этой оси выключен; иначе выход spring-damper
+    const kpPitch = AIM_CONTROLLER_DEFAULTS.kpPitch;
+    const kdPitch = AIM_CONTROLLER_DEFAULTS.kdPitch;
+    const kpYaw = AIM_CONTROLLER_DEFAULTS.kpYaw;
+    const kdYaw = AIM_CONTROLLER_DEFAULTS.kdYaw;
+    const aimDeadzone = AIM_CONTROLLER_DEFAULTS.deadzoneRad;
+
+    let pitchInput: number;
+    let yawInput: number;
+    if (rawPitchKey !== 0) {
+      pitchInput = rawPitchKey;
+    } else if (camera) {
+      // Тангаж: pitchError = -atan2(ly,lz) → цель выше носа = отриц. ошибка; нос вверх = +1
+      const pitchFromAim = computeAxisInputSpringDamper(
+        pitchErrorRad,
+        pitchVelocity,
+        kpPitch,
+        kdPitch,
+        aimDeadzone
+      );
+      pitchInput = -pitchFromAim;
+    } else {
+      pitchInput = 0;
+    }
+
+    if (rawYawKey !== 0) {
+      yawInput = rawYawKey;
+    } else if (camera) {
+      yawInput = computeAxisInputSpringDamper(
+        yawErrorRad,
+        yawVelocity,
+        kpYaw,
+        kdYaw,
+        aimDeadzone
+      );
+    } else {
+      yawInput = 0;
+    }
+
+    // Логируем итоговый ввод / Log final input
     if (pitchInput !== 0) Debug.log("input", "PITCH_INPUT", { pitchInput });
     if (rollInput !== 0) Debug.log("input", "ROLL_INPUT", { rollInput });
     if (yawInput !== 0) Debug.log("input", "YAW_INPUT", { yawInput });
@@ -266,12 +342,12 @@ export function createControls(
     AudioManager.setEngineRPM(1 + stats.speed * 3);
     AudioManager.setWindIntensity(stats.speed * 0.8);
 
-    // === Автостабилизация / Autostabilization (локальная applyStabilizationAxis → physics) ===
+    // === Автостабилизация / Autostabilization (отключается только при ручном вводе с клавиш) ===
     const pitchStabForce = applyStabilizationAxis({
       axis: "pitch",
       angle: pitchAngle,
       angleAbs: pitchAbs,
-      input: pitchInput,
+      input: rawPitchKey,
       speedFactor,
       stabLimit: STAB_LIMIT,
       forceLinear: 1.2,
@@ -473,5 +549,11 @@ export function createControls(
     out.copy(aimDir_world);
   }
 
-  return { update, getReticle, getAimDir };
+  /** Записывает текущие ошибки наведения (yaw/pitch в радианах, с deadzone) в out. */
+  function getAimErrors(out: AimErrors): void {
+    out.yawErrorRad = yawErrorRad;
+    out.pitchErrorRad = pitchErrorRad;
+  }
+
+  return { update, getReticle, getAimDir, getAimErrors };
 }

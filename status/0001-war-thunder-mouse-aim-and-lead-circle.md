@@ -6,7 +6,8 @@
 
 - ✅ **Этап 1.1**: расширен `AirplaneStats` (добавлены `yawAccel`, `yawDamping`, опциональные `max*Rate`).
 - ✅ **Этап 1.2**: расширен `flight-model` (добавлен `yawVelocity`, поддержка yaw во входах/демпфировании; добавлены `updateInertiaInto/applyDampingInto` для безаллокаторного пути).
-- ⏳ **Далее**: этапы 1.3–7 по плану.
+- ✅ **Этап 1.3**: добавлен yaw в `controls.update()` (клавиши Q/E, `yawVelocity`, clamp, `rotateY`; инерция/демпфирование — через `*Into` без аллокаций).
+- ⏳ **Далее**: этапы 2–7 по плану.
 
 ## Чеклист по плану
 
@@ -14,7 +15,7 @@
 
 - [x] **1.1 Расширить `AirplaneStats`** (`src/airplanes.ts`)
 - [x] **1.2 Расширить flight-model** (`src/physics/flight-model.ts`)
-- [ ] **1.3 Поддержать yaw в `controls.update()`** (`src/controls.ts`)
+- [x] **1.3 Поддержать yaw в `controls.update()`** (`src/controls.ts`)
 
 ### Этап 2 — Ввод мыши и состояние перекрестия
 

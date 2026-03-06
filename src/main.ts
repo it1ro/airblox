@@ -5,6 +5,7 @@ import { createControls } from "./controls";
 import { LIGHT_FIGHTER } from "./airplanes";
 import { AudioManager } from "./audio";
 import { subscribe as subscribeMouseInput } from "./input/mouse-input";
+import { initAimOverlay, updateAimOverlay } from "./ui/aim-overlay";
 
 // === HDR LOADER ===
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
@@ -30,7 +31,10 @@ const controls = createControls(
   { sensitivity: 1, clampRadiusNdc: 0.6, returnToCenterSpeed: 0.01 }
 );
 
+initAimOverlay(renderer.domElement);
+
 const cameraOffset = new THREE.Vector3(0, 3, -8);
+const reticleState = { x_ndc: 0, y_ndc: 0 };
 const desiredPos = new THREE.Vector3();
 
 async function main() {
@@ -67,6 +71,8 @@ function loop() {
 
   // === ОБНОВЛЕНИЕ УПРАВЛЕНИЯ ===
   controls.update();
+  controls.getReticle(reticleState);
+  updateAimOverlay(reticleState.x_ndc, reticleState.y_ndc);
 
   // === КАМЕРА ТРЕТЬЕГО ЛИЦА ===
   desiredPos.copy(airplane.position).add(cameraOffset);

@@ -15,7 +15,9 @@
 - ✅ **Этап 4.2**: Параметры (дефолты) — экспорт `AIM_CONTROLLER_DEFAULTS` (kpYaw/kpPitch/kpRoll ∈ [2..8], kdYaw/kdPitch/kdRoll ∈ [0.5..2], deadzoneRad).
 - ✅ **Этап 4.3**: Микширование с клавиатурой — в `controls.update()` при нажатии клавиш по оси pitch/yaw mouse-aim по этой оси отключён; иначе используется выход spring-damper контроллера; крен остаётся ручным.
 - ✅ **Этап 4.4**: Ограничители для «задержки» — в `AirplaneStats` добавлены опциональные `maxPitchRateChange`, `maxYawRateChange`, `maxRollRateChange` (макс. приращение угл. скорости за кадр); в `flight-model` приращение ограничивается через `clampDelta()` перед добавлением к скорости; clamp по `max*Rate` уже применяется в `controls.update()`. Во всех пресетах заданы `max*Rate` и `max*RateChange`.
-- ⏳ **Далее**: этапы 5–7 по плану.
+- ✅ **Этап 5.1**: DOM overlay — `src/ui/aim-overlay.ts`: `initAimOverlay(canvas?)`, `updateAimOverlay(reticleX_ndc, reticleY_ndc, leadX_ndc?, leadY_ndc?)`; SVG перекрестие и кружок упреждения поверх canvas; подключение в `main.ts`.
+- ✅ **Этап 5.2**: Привязка размеров — в `updateAimOverlay` пиксели из NDC: `px = (ndcX*0.5+0.5)*width`, `py = (-ndcY*0.5+0.5)*height`; размеры берутся из overlay (`clientWidth`/`clientHeight`) каждый кадр, resize обрабатывается автоматически.
+- ⏳ **Далее**: этапы 6–7 по плану.
 
 ## Чеклист по плану
 
@@ -44,8 +46,8 @@
 
 ### Этап 5 — HUD перекрестия (overlay)
 
-- [ ] **5.1 DOM overlay**
-- [ ] **5.2 Привязка размеров**
+- [x] **5.1 DOM overlay**
+- [x] **5.2 Привязка размеров**
 
 ### Этап 6 — Кружок упреждения v1
 

@@ -9,7 +9,14 @@ import {
 } from "./physics/flight-model";
 import { computeStabilizationForce } from "./physics/stabilization";
 import { getKeys, subscribe as subscribeKeyboard } from "./input/keyboard-input";
+import { getMouseDeltas, type MouseDeltas } from "./input/mouse-input";
 import type { CameraLike } from "./types";
+
+/** Состояние перекрестия в NDC [-1..1] для виртуального джойстика (mouse-aim). */
+export interface ReticleState {
+  x_ndc: number;
+  y_ndc: number;
+}
 
 // Логируются / Logged:
 //  - ввод игрока (pitch/roll) 
@@ -39,11 +46,27 @@ import type { CameraLike } from "./types";
 //      но достаточно редко, чтобы не засорять лог лишними данными.
 // ============================================================================
 
+/** Параметры перекрестия (виртуальный джойстик). */
+export interface ReticleParams {
+  /** Множитель пиксели → NDC (1 = стандартная чувствительность). */
+  sensitivity?: number;
+  /** Радиус ограничения в NDC (круг), например 0.6. */
+  clampRadiusNdc?: number;
+  /** Скорость возврата к центру за кадр (0 = выключено), для «WT feel» ~0.01. */
+  returnToCenterSpeed?: number;
+}
+
+const DEFAULT_RETICLE_SENSITIVITY = 1;
+const DEFAULT_CLAMP_RADIUS_NDC = 0.6;
+const DEFAULT_RETURN_TO_CENTER_SPEED = 0.01;
+
 export function createControls(
   airplane: THREE.Object3D,
   stats: AirplaneStats,
   scene?: THREE.Scene,
-  camera?: THREE.Camera
+  camera?: THREE.Camera,
+  canvas?: HTMLCanvasElement,
+  reticleParams?: ReticleParams
 ) {
   // Переиспользуемые объекты (без аллокаций в update)
   const forwardVector = new THREE.Vector3(0, 0, 1);
@@ -52,6 +75,14 @@ export function createControls(
   const tempVector = new THREE.Vector3();
   const tempEuler = new THREE.Euler();
   const tempQuat = new THREE.Quaternion();
+
+  // ReticleState: перекрестие в NDC [-1..1], без аллокаций в update
+  let reticleX_ndc = 0;
+  let reticleY_ndc = 0;
+  const reticleSensitivity = reticleParams?.sensitivity ?? DEFAULT_RETICLE_SENSITIVITY;
+  const reticleClampRadius = reticleParams?.clampRadiusNdc ?? DEFAULT_CLAMP_RADIUS_NDC;
+  const reticleReturnSpeed = reticleParams?.returnToCenterSpeed ?? DEFAULT_RETURN_TO_CENTER_SPEED;
+  const mouseDeltasOut: MouseDeltas = { dx: 0, dy: 0 };
 
   // Схема управления: A — правое крыло вверх, D — левое крыло вверх, W/S — тангаж
   // Control keys: A — right wing up, D — left wing up, W/S — pitch up/down
@@ -155,6 +186,28 @@ export function createControls(
   }
 
   function update() {
+    // --- ReticleState: применяем дельты мыши → NDC, clamp, опционально возврат к центру ---
+    getMouseDeltas(mouseDeltasOut);
+    if (canvas) {
+      const w = canvas.clientWidth || 1;
+      const h = canvas.clientHeight || 1;
+      const scaleX = (2 / w) * reticleSensitivity;
+      const scaleY = (2 / h) * reticleSensitivity;
+      reticleX_ndc += mouseDeltasOut.dx * scaleX;
+      reticleY_ndc -= mouseDeltasOut.dy * scaleY; // Y в NDC: вверх положительно
+      const rSq = reticleX_ndc * reticleX_ndc + reticleY_ndc * reticleY_ndc;
+      const clampR2 = reticleClampRadius * reticleClampRadius;
+      if (rSq > clampR2) {
+        const r = Math.sqrt(rSq);
+        reticleX_ndc *= reticleClampRadius / r;
+        reticleY_ndc *= reticleClampRadius / r;
+      }
+      if (reticleReturnSpeed > 0) {
+        reticleX_ndc *= 1 - reticleReturnSpeed;
+        reticleY_ndc *= 1 - reticleReturnSpeed;
+      }
+    }
+
     const keys = getKeys();
     let pitchInput = 0;
     let rollInput = 0;
@@ -400,5 +453,10 @@ export function createControls(
     });
   }
 
-  return { update };
+  function getReticle(out: ReticleState): void {
+    out.x_ndc = reticleX_ndc;
+    out.y_ndc = reticleY_ndc;
+  }
+
+  return { update, getReticle };
 }

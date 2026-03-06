@@ -8,7 +8,8 @@
 - ✅ **Этап 1.2**: расширен `flight-model` (добавлен `yawVelocity`, поддержка yaw во входах/демпфировании; добавлены `updateInertiaInto/applyDampingInto` для безаллокаторного пути).
 - ✅ **Этап 1.3**: добавлен yaw в `controls.update()` (клавиши Q/E, `yawVelocity`, clamp, `rotateY`; инерция/демпфирование — через `*Into` без аллокаций).
 - ✅ **Этап 2.1**: новый модуль ввода мыши `src/input/mouse-input.ts` (накопление dx/dy, `getMouseDeltas(out)`, подписка на `renderer.domElement`); подключение в `main.ts`.
-- ⏳ **Далее**: этапы 2.2–7 по плану.
+- ✅ **Этап 2.2**: ReticleState в `createControls` — `reticleX_ndc`/`reticleY_ndc` (NDC [-1..1]), sensitivity, clamp по радиусу (круг 0.6), опциональный возврат к центру; `getReticle(out)` для overlay/aim; без аллокаций в update.
+- ⏳ **Далее**: этапы 3–7 по плану.
 
 ## Чеклист по плану
 
@@ -21,7 +22,7 @@
 ### Этап 2 — Ввод мыши и состояние перекрестия
 
 - [x] **2.1 Новый модуль ввода мыши**
-- [ ] **2.2 ReticleState**
+- [x] **2.2 ReticleState**
 
 ### Этап 3 — AimRay и расчёт ошибок наведения
 

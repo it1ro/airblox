@@ -21,7 +21,14 @@ window.addEventListener("beforeunload", () => {
 const airplane = createAirplane();
 scene.add(airplane);
 
-const controls = createControls(airplane, LIGHT_FIGHTER, scene, camera);
+const controls = createControls(
+  airplane,
+  LIGHT_FIGHTER,
+  scene,
+  camera,
+  renderer.domElement,
+  { sensitivity: 1, clampRadiusNdc: 0.6, returnToCenterSpeed: 0.01 }
+);
 
 const cameraOffset = new THREE.Vector3(0, 3, -8);
 const desiredPos = new THREE.Vector3();

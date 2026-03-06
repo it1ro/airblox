@@ -28,6 +28,11 @@ export interface AimErrors {
   pitchErrorRad: number;
 }
 
+/** Опции для отладки в update (например leadNdc из main loop). */
+export interface UpdateDebugOptions {
+  leadNdc?: { x: number; y: number };
+}
+
 // Логируются / Logged:
 //  - ввод игрока (pitch/roll) 
 //      → player input (pitch/roll)
@@ -207,7 +212,7 @@ export function createControls(
     return force;
   }
 
-  function update() {
+  function update(_dt?: number, debugOptions?: UpdateDebugOptions) {
     // --- ReticleState: применяем дельты мыши → NDC, clamp, опционально возврат к центру ---
     getMouseDeltas(mouseDeltasOut);
     if (canvas) {
@@ -524,19 +529,26 @@ export function createControls(
     // ========================================================================
     // HUD — отображение ключевых параметров / HUD display
     // ========================================================================
-    Debug.updateHUD({
+    const hud: Record<string, string> = {
       pitchDeg: (pitchAngle * 180 / Math.PI).toFixed(1),
       yawDeg: (yawAngle * 180 / Math.PI).toFixed(1),
       rollDeg: (rollAngle * 180 / Math.PI).toFixed(1),
       pitchVel: pitchVelocity.toFixed(4),
       yawVel: yawVelocity.toFixed(4),
       rollVel: rollVelocity.toFixed(4),
+      yawErrorDeg: (yawErrorRad * 180 / Math.PI).toFixed(2),
+      pitchErrorDeg: (pitchErrorRad * 180 / Math.PI).toFixed(2),
+      reticleNdc: `${reticleX_ndc.toFixed(3)}, ${reticleY_ndc.toFixed(3)}`,
       altitude: altitude !== null ? altitude.toFixed(2) : "N/A",
       distCam: distanceToCamera !== null ? distanceToCamera.toFixed(2) : "N/A",
       relPitch: relPitch !== null ? (relPitch * 180 / Math.PI).toFixed(1) : "N/A",
       relYaw: relYaw !== null ? (relYaw * 180 / Math.PI).toFixed(1) : "N/A",
       relRoll: relRoll !== null ? (relRoll * 180 / Math.PI).toFixed(1) : "N/A"
-    });
+    };
+    if (debugOptions?.leadNdc !== undefined) {
+      hud.leadNdc = `${debugOptions.leadNdc.x.toFixed(3)}, ${debugOptions.leadNdc.y.toFixed(3)}`;
+    }
+    Debug.updateHUD(hud);
   }
 
   function getReticle(out: ReticleState): void {

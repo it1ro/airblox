@@ -82,19 +82,10 @@ function loop() {
   const dt = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
 
-  // === ОБНОВЛЕНИЕ УПРАВЛЕНИЯ ===
-  controls.update();
-  controls.getReticle(reticleState);
-
-  // === КАМЕРА ТРЕТЬЕГО ЛИЦА ===
-  desiredPos.copy(airplane.position).add(cameraOffset);
-  camera.position.lerp(desiredPos, 0.1);
-  camera.lookAt(airplane.position);
-
   // === ТЕСТОВАЯ ЦЕЛЬ (линейное движение) ===
   testTarget.update(dt);
 
-  // === 6.3 Проекция leadPoint на экран: leadPoint_world = targetPos + targetVel*t, leadNdc = project(camera) ===
+  // === 6.3 Проекция leadPoint на экран (до controls.update для Debug HUD) ===
   rVec.subVectors(testTarget.pos, airplane.position);
   const t = solveInterceptTime(rVec, testTarget.vel, PROJECTILE_SPEED);
   let leadX_ndc: number | undefined;
@@ -107,6 +98,20 @@ function loop() {
       leadY_ndc = leadPointWorld.y;
     }
   }
+
+  // === ОБНОВЛЕНИЕ УПРАВЛЕНИЯ (с leadNdc для Debug HUD 7.1) ===
+  const debugOptions =
+    leadX_ndc !== undefined && leadY_ndc !== undefined
+      ? { leadNdc: { x: leadX_ndc, y: leadY_ndc } }
+      : undefined;
+  controls.update(undefined, debugOptions);
+  controls.getReticle(reticleState);
+
+  // === КАМЕРА ТРЕТЬЕГО ЛИЦА ===
+  desiredPos.copy(airplane.position).add(cameraOffset);
+  camera.position.lerp(desiredPos, 0.1);
+  camera.lookAt(airplane.position);
+
   updateAimOverlay(reticleState.x_ndc, reticleState.y_ndc, leadX_ndc, leadY_ndc);
 
   // === ДВИЖЕНИЕ ОБЛАКОВ ===

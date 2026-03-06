@@ -7,8 +7,10 @@
 let overlayRoot: HTMLDivElement | null = null;
 let reticleEl: SVGSVGElement | null = null;
 let leadCircleEl: SVGSVGElement | null = null;
+/** Canvas (viewport рендерера) для привязки размеров: при resize пиксели пересчитываются из NDC по его ширине/высоте. */
+let viewportCanvas: HTMLCanvasElement | null = null;
 
-/** NDC → пиксели: px = (ndcX*0.5+0.5)*width, py = (-ndcY*0.5+0.5)*height */
+/** NDC → пиксели (привязка размеров 5.2): px = (ndcX*0.5+0.5)*width, py = (-ndcY*0.5+0.5)*height */
 function ndcToPx(
   ndcX: number,
   ndcY: number,
@@ -72,6 +74,7 @@ export function initAimOverlay(canvas?: HTMLCanvasElement): void {
 
   if (canvas && canvas.parentNode) {
     canvas.parentNode.insertBefore(root, canvas.nextSibling);
+    viewportCanvas = canvas;
   } else {
     document.body.appendChild(root);
   }
@@ -85,7 +88,8 @@ const _px = { x: 0, y: 0 };
 
 /**
  * Обновляет позиции перекрестия и (опционально) кружка упреждения из NDC.
- * Размеры берутся из overlay (при resize пересчёт автоматический).
+ * Привязка размеров (5.2): при resize width/height берутся из viewport (canvas или overlay);
+ * пиксели пересчитываются каждый кадр: px = (ndcX*0.5+0.5)*width, py = (-ndcY*0.5+0.5)*height.
  */
 export function updateAimOverlay(
   reticleX_ndc: number,
@@ -95,8 +99,9 @@ export function updateAimOverlay(
 ): void {
   if (!overlayRoot || !reticleEl || !leadCircleEl) return;
 
-  const w = overlayRoot.clientWidth || 1;
-  const h = overlayRoot.clientHeight || 1;
+  const c = viewportCanvas;
+  const w = (c ? c.clientWidth : overlayRoot.clientWidth) || 1;
+  const h = (c ? c.clientHeight : overlayRoot.clientHeight) || 1;
 
   ndcToPx(reticleX_ndc, reticleY_ndc, w, h, _px);
   reticleEl.style.left = `${_px.x}px`;

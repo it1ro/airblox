@@ -16,7 +16,7 @@
 - ✅ **Этап 4.3**: Микширование с клавиатурой — в `controls.update()` при нажатии клавиш по оси pitch/yaw mouse-aim по этой оси отключён; иначе используется выход spring-damper контроллера; крен остаётся ручным.
 - ✅ **Этап 4.4**: Ограничители для «задержки» — в `AirplaneStats` добавлены опциональные `maxPitchRateChange`, `maxYawRateChange`, `maxRollRateChange` (макс. приращение угл. скорости за кадр); в `flight-model` приращение ограничивается через `clampDelta()` перед добавлением к скорости; clamp по `max*Rate` уже применяется в `controls.update()`. Во всех пресетах заданы `max*Rate` и `max*RateChange`.
 - ✅ **Этап 5.1**: DOM overlay — `src/ui/aim-overlay.ts`: `initAimOverlay(canvas?)`, `updateAimOverlay(reticleX_ndc, reticleY_ndc, leadX_ndc?, leadY_ndc?)`; SVG перекрестие и кружок упреждения поверх canvas; подключение в `main.ts`.
-- ✅ **Этап 5.2**: Привязка размеров — в `updateAimOverlay` пиксели из NDC: `px = (ndcX*0.5+0.5)*width`, `py = (-ndcY*0.5+0.5)*height`; размеры берутся из overlay (`clientWidth`/`clientHeight`) каждый кадр, resize обрабатывается автоматически.
+- ✅ **Этап 5.2**: Привязка размеров — в `updateAimOverlay` пиксели из NDC: `px = (ndcX*0.5+0.5)*width`, `py = (-ndcY*0.5+0.5)*height`; при инициализации с canvas сохраняется `viewportCanvas`, размеры берутся из canvas (или overlay), при resize пересчёт — каждый кадр.
 - ⏳ **Далее**: этапы 6–7 по плану.
 
 ## Чеклист по плану

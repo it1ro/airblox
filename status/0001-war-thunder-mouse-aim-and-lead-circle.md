@@ -12,7 +12,8 @@
 - ✅ **Этап 3.1**: Ray от камеры через перекрестие — `aimDir_world`, `getAimDir(out)` (уже было).
 - ✅ **Этап 3.2**: Ошибки yaw/pitch в локальном базисе самолёта — forward/right/up из quaternion, `yawError = atan2(lx, lz)`, `pitchError = -atan2(ly, lz)`, deadzone ~1°, `getAimErrors(out)`; без аллокаций в update.
 - ✅ **Этап 4.1**: Чистые функции контроллера в `src/physics/aim-controller.ts` — `computeAxisInputSpringDamper`, `computeBankTarget`, `computeRollInputToBank`; только числа, без побочных эффектов.
-- ⏳ **Далее**: этапы 4.2–7 по плану.
+- ✅ **Этап 4.2**: Параметры (дефолты) — экспорт `AIM_CONTROLLER_DEFAULTS` (kpYaw/kpPitch/kpRoll ∈ [2..8], kdYaw/kdPitch/kdRoll ∈ [0.5..2], deadzoneRad).
+- ⏳ **Далее**: этапы 4.3–7 по плану.
 
 ## Чеклист по плану
 
@@ -35,7 +36,7 @@
 ### Этап 4 — Spring–Damper контроллер
 
 - [x] **4.1 Чистые функции контроллера**
-- [ ] **4.2 Параметры (дефолты)**
+- [x] **4.2 Параметры (дефолты)**
 - [ ] **4.3 Микширование с клавиатурой**
 - [ ] **4.4 Ограничители для «задержки»**
 

@@ -17,7 +17,10 @@
 - ✅ **Этап 4.4**: Ограничители для «задержки» — в `AirplaneStats` добавлены опциональные `maxPitchRateChange`, `maxYawRateChange`, `maxRollRateChange` (макс. приращение угл. скорости за кадр); в `flight-model` приращение ограничивается через `clampDelta()` перед добавлением к скорости; clamp по `max*Rate` уже применяется в `controls.update()`. Во всех пресетах заданы `max*Rate` и `max*RateChange`.
 - ✅ **Этап 5.1**: DOM overlay — `src/ui/aim-overlay.ts`: `initAimOverlay(canvas?)`, `updateAimOverlay(reticleX_ndc, reticleY_ndc, leadX_ndc?, leadY_ndc?)`; SVG перекрестие и кружок упреждения поверх canvas; подключение в `main.ts`.
 - ✅ **Этап 5.2**: Привязка размеров — в `updateAimOverlay` пиксели из NDC: `px = (ndcX*0.5+0.5)*width`, `py = (-ndcY*0.5+0.5)*height`; при инициализации с canvas сохраняется `viewportCanvas`, размеры берутся из canvas (или overlay), при resize пересчёт — каждый кадр.
-- ⏳ **Далее**: этапы 6–7 по плану.
+- ✅ **Этап 6.1**: Математика перехвата (чистая) — `src/physics/intercept.ts`: `solveInterceptTime(rVec, vVec, projectileSpeed)` → минимальный положительный `t` или `null`; без аллокаций.
+- ✅ **Этап 6.2**: Тестовая цель — `src/game/test-target.ts`: `createTestTarget(scene, options)` — сфера в сцене, `pos`/`vel` (переиспользуемые Vector3), `update(dt)` без аллокаций; подключена в `main.ts`, в loop вызывается с реальным dt.
+- ✅ **Этап 6.3**: Проекция leadPoint на экран — в `main.ts` в loop: `rVec = target.pos - airplane.position`, `t = solveInterceptTime(rVec, target.vel, PROJECTILE_SPEED)`; при `t !== null`: `leadPointWorld = target.pos + target.vel*t`, `leadPointWorld.project(camera)`; кружок отображается в `updateAimOverlay(..., leadX_ndc, leadY_ndc)`; при точке сзади камеры (`z > 1`) кружок скрыт.
+- ⏳ **Далее**: этап 7 по плану.
 
 ## Чеклист по плану
 
@@ -51,9 +54,9 @@
 
 ### Этап 6 — Кружок упреждения v1
 
-- [ ] **6.1 Математика перехвата (чистая)**
-- [ ] **6.2 Тестовая цель**
-- [ ] **6.3 Проекция leadPoint на экран**
+- [x] **6.1 Математика перехвата (чистая)** (`src/physics/intercept.ts`)
+- [x] **6.2 Тестовая цель**
+- [x] **6.3 Проекция leadPoint на экран**
 
 ### Этап 7 — Отладка, настройки, крайние случаи
 

@@ -6,6 +6,8 @@ import { LIGHT_FIGHTER } from "./airplanes";
 import { AudioManager } from "./audio";
 import { subscribe as subscribeMouseInput } from "./input/mouse-input";
 import { initAimOverlay, updateAimOverlay } from "./ui/aim-overlay";
+import { createTestTarget } from "./game/test-target";
+import { solveInterceptTime } from "./physics/intercept";
 
 // === HDR LOADER ===
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
@@ -33,9 +35,17 @@ const controls = createControls(
 
 initAimOverlay(renderer.domElement);
 
+const testTarget = createTestTarget(scene);
 const cameraOffset = new THREE.Vector3(0, 3, -8);
 const reticleState = { x_ndc: 0, y_ndc: 0 };
 const desiredPos = new THREE.Vector3();
+/** Скорость снаряда для расчёта упреждения (м/с). */
+const PROJECTILE_SPEED = 500;
+/** Вектор от самолёта к цели (для solveInterceptTime), переиспользуемый. */
+const rVec = new THREE.Vector3();
+/** Точка упреждения в мире, затем в NDC после project(camera). */
+const leadPointWorld = new THREE.Vector3();
+let lastTime = performance.now();
 
 async function main() {
   try {
@@ -68,16 +78,36 @@ new RGBELoader().load(
 
 function loop() {
   requestAnimationFrame(loop);
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
 
   // === ОБНОВЛЕНИЕ УПРАВЛЕНИЯ ===
   controls.update();
   controls.getReticle(reticleState);
-  updateAimOverlay(reticleState.x_ndc, reticleState.y_ndc);
 
   // === КАМЕРА ТРЕТЬЕГО ЛИЦА ===
   desiredPos.copy(airplane.position).add(cameraOffset);
   camera.position.lerp(desiredPos, 0.1);
   camera.lookAt(airplane.position);
+
+  // === ТЕСТОВАЯ ЦЕЛЬ (линейное движение) ===
+  testTarget.update(dt);
+
+  // === 6.3 Проекция leadPoint на экран: leadPoint_world = targetPos + targetVel*t, leadNdc = project(camera) ===
+  rVec.subVectors(testTarget.pos, airplane.position);
+  const t = solveInterceptTime(rVec, testTarget.vel, PROJECTILE_SPEED);
+  let leadX_ndc: number | undefined;
+  let leadY_ndc: number | undefined;
+  if (t !== null) {
+    leadPointWorld.copy(testTarget.pos).addScaledVector(testTarget.vel, t);
+    leadPointWorld.project(camera);
+    if (leadPointWorld.z <= 1) {
+      leadX_ndc = leadPointWorld.x;
+      leadY_ndc = leadPointWorld.y;
+    }
+  }
+  updateAimOverlay(reticleState.x_ndc, reticleState.y_ndc, leadX_ndc, leadY_ndc);
 
   // === ДВИЖЕНИЕ ОБЛАКОВ ===
   for (let i = 0; i < clouds.length; i++) {

@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { AirplaneStats } from "./airplanes";
 import { AudioManager } from "./audio";
-import { Debug } from "./debug";
+import { DevOverlay } from "./debug";
+import { FlightRecorder, type FlightSnapshot } from "./flight-recorder";
 import {
   applyDampingInto,
   updateInertiaInto,
@@ -12,7 +13,7 @@ import {
   AIM_CONTROLLER_DEFAULTS
 } from "./physics/aim-controller";
 import { computeStabilizationForce } from "./physics/stabilization";
-import { getKeys, subscribe as subscribeKeyboard } from "./input/keyboard-input";
+import { getKeys } from "./input/keyboard-input";
 import { getMouseDeltas, type MouseDeltas } from "./input/mouse-input";
 import type { CameraLike } from "./types";
 
@@ -32,34 +33,6 @@ export interface AimErrors {
 export interface UpdateDebugOptions {
   leadNdc?: { x: number; y: number };
 }
-
-// Логируются / Logged:
-//  - ввод игрока (pitch/roll) 
-//      → player input (pitch/roll)
-//  - углы самолёта (pitchAngle, rollAngle) 
-//      → airplane orientation angles (pitchAngle, rollAngle)
-//  - скорости вращения (pitchVelocity, rollVelocity) 
-//      → angular velocities (pitchVelocity, rollVelocity)
-//  - высота над землёй (raycast вниз) 
-//      → altitude above ground (raycast downward)
-//  - положение самолёта относительно камеры 
-//      → airplane position relative to camera
-//  - относительные углы самолёта к камере 
-//      → relative orientation to camera (pitch/yaw/roll difference)
-//  - состояние стабилизации 
-//      → stabilization state (enabled/disabled, force applied)
-//
-//  - периодический STATE-снимок (раз в 200 мс)
-//      → periodic STATE snapshot (every 200 ms)
-//      Это автоматическая запись полного состояния самолёта в лог через равные интервалы времени.
-//      В отличие от событий (нажатие клавиши, включение стабилизации и т.п.), этот снимок
-//      фиксирует текущее состояние самолёта "как есть": углы, скорости вращения, позицию,
-//      высоту над землёй, расстояние до камеры и относительные углы.
-//      Такой снимок создаёт "чёрный ящик" полёта — помогает анализировать поведение между событиями,
-//      ловить редкие баги, которые проявляются не в момент нажатия кнопки, а спустя время.
-//      Интервал 200 мс выбран как компромисс: достаточно часто, чтобы видеть динамику,
-//      но достаточно редко, чтобы не засорять лог лишними данными.
-// ============================================================================
 
 /** Параметры перекрестия (виртуальный джойстик). */
 export interface ReticleParams {
@@ -143,29 +116,6 @@ export function createControls(
   const lastStabActivePitchRef = { current: performance.now() };
   const lastStabActiveRollRef = { current: performance.now() };
 
-  Debug.init();
-
-  subscribeKeyboard((key, down) => {
-    if (down) Debug.log("input", "KEY_DOWN", { key });
-    else Debug.log("input", "KEY_UP", { key });
-  });
-
-  let lastStateLog = 0;
-
-  function logStabState(
-    axis: "pitch" | "roll",
-    angle: number,
-    appliedForce: number,
-    reason: string
-  ) {
-    Debug.log("stabilization", "STAB_EVENT", {
-      axis,
-      angle,
-      appliedForce,
-      reason
-    });
-  }
-
   /** Локальная вспомогательная функция стабилизации по одной оси (шаг A рефакторинга). */
   function applyStabilizationAxis(params: {
     axis: "pitch" | "roll";
@@ -190,24 +140,7 @@ export function createControls(
       forceConst
     );
     if (force !== 0) {
-      logStabState(axis, angle, force, "active");
       lastStabActiveRef.current = performance.now();
-    } else {
-      const reason =
-        input !== 0 ? "disabled_player_input" : "disabled_angle_limit";
-      logStabState(axis, angle, 0, reason);
-      const idleFor = performance.now() - lastStabActiveRef.current;
-      if (idleFor > 1000) {
-        Debug.log("stabilization", "STAB_IDLE", {
-          axis,
-          angle,
-          idleFor,
-          reason:
-            reason === "disabled_player_input"
-              ? "no_stabilization_for_1s_due_to_input"
-              : "no_stabilization_for_1s_due_to_angle"
-        });
-      }
     }
     return force;
   }
@@ -312,11 +245,6 @@ export function createControls(
       yawInput = 0;
     }
 
-    // Логируем итоговый ввод / Log final input
-    if (pitchInput !== 0) Debug.log("input", "PITCH_INPUT", { pitchInput });
-    if (rollInput !== 0) Debug.log("input", "ROLL_INPUT", { rollInput });
-    if (yawInput !== 0) Debug.log("input", "YAW_INPUT", { yawInput });
-
     // Инерция вращения / Angular inertia (physics)
     updateInertiaInto(
       angularOut,
@@ -375,39 +303,6 @@ export function createControls(
     // Плюс: т.к. крен применяется как rotateZ(-rollVelocity), стабилизация должна увеличивать rollVelocity при положительном угле
     rollVelocity += rollStabForce;
 
-    // === Аномалии стабилизации / Stabilization anomalies ===
-    if (Math.abs(pitchVelocity) > 0.04) {
-      Debug.log("anomalies", "STAB_ANOMALY", {
-        axis: "pitch",
-        pitchVelocity,
-        reason: "high_rotation_speed"
-      });
-    }
-
-    if (Math.abs(rollVelocity) > 0.05) {
-      Debug.log("anomalies", "STAB_ANOMALY", {
-        axis: "roll",
-        rollVelocity,
-        reason: "high_rotation_speed"
-      });
-    }
-
-    if (pitchAbs > Math.PI * 0.5) {
-      Debug.log("anomalies", "STAB_ANOMALY", {
-        axis: "pitch",
-        angle: pitchAngle,
-        reason: "inverted_flight"
-      });
-    }
-
-    if (rollAbs > Math.PI * 0.5) {
-      Debug.log("anomalies", "STAB_ANOMALY", {
-        axis: "roll",
-        angle: rollAngle,
-        reason: "inverted_flight"
-      });
-    }
-
     // Ограничение скорости вращения / Clamp angular velocities
     pitchVelocity = THREE.MathUtils.clamp(
       pitchVelocity,
@@ -430,33 +325,6 @@ export function createControls(
     pitchVelocity = angularOut.pitchVelocity;
     rollVelocity = angularOut.rollVelocity;
     yawVelocity = angularOut.yawVelocity;
-
-    // Лог демпфирования / Damping log
-    Debug.log("damping", "DAMPING", {
-      pitchVelocity,
-      rollVelocity,
-      yawVelocity,
-      pitchDamping: stats.pitchDamping,
-      yawDamping: stats.yawDamping,
-      rollDamping: stats.rollDamping
-    });
-
-    // Логирование перехода через 0° (zero-cross)
-    if (Math.sign(pitchAngle) !== Math.sign(pitchAngle + pitchVelocity)) {
-      Debug.log("zeroCross", "STAB_ZERO_CROSS", {
-        axis: "pitch",
-        from: pitchAngle,
-        to: pitchAngle + pitchVelocity
-      });
-    }
-
-    if (Math.sign(rollAngle) !== Math.sign(rollAngle + rollVelocity)) {
-      Debug.log("zeroCross", "STAB_ZERO_CROSS", {
-        axis: "roll",
-        from: rollAngle,
-        to: rollAngle + rollVelocity
-      });
-    }
 
     // Применяем вращение / Apply rotation (углы не ограничиваем — полная свобода крена и тангажа)
     airplane.rotateX(pitchVelocity);
@@ -501,29 +369,50 @@ export function createControls(
     }
 
     // ========================================================================
-    // ПЕРИОДИЧЕСКИЙ STATE-лог (раз в 200 мс) / PERIODIC STATE SNAPSHOT
+    // Flight Recorder: снимок только при включённой записи (без аллокаций в hot path)
     // ========================================================================
-    const now = performance.now();
-    if (now - lastStateLog > 200) {
-      Debug.log("stateSnapshot", "STATE", {
-        pitchAngle,
-        yawAngle,
-        rollAngle,
-        pitchVelocity,
-        yawVelocity,
-        rollVelocity,
-        altitude,
-        distanceToCamera,
-        relPitch,
-        relYaw,
-        relRoll,
-        pos: {
-          x: airplane.position.x,
-          y: airplane.position.y,
-          z: airplane.position.z
-        }
-      });
-      lastStateLog = now;
+    if (FlightRecorder.isRecording()) {
+      const t = performance.now();
+      const snapshot: FlightSnapshot = {
+        t,
+        airplane: {
+          pos: {
+            x: airplane.position.x,
+            y: airplane.position.y,
+            z: airplane.position.z
+          },
+          pitch: pitchAngle,
+          yaw: yawAngle,
+          roll: rollAngle,
+          pitchVelocity,
+          rollVelocity,
+          yawVelocity
+        },
+        controls: {
+          pitchInput,
+          rollInput,
+          yawInput
+        },
+        reticle: { x_ndc: reticleX_ndc, y_ndc: reticleY_ndc },
+        aim: { yawErrorRad, pitchErrorRad },
+        camera:
+          distanceToCamera !== null &&
+          relPitch !== null &&
+          relYaw !== null &&
+          relRoll !== null
+            ? {
+                distanceToCamera,
+                relPitch,
+                relYaw,
+                relRoll
+              }
+            : null,
+        altitude: altitude ?? null
+      };
+      if (debugOptions?.leadNdc !== undefined) {
+        snapshot.leadNdc = debugOptions.leadNdc;
+      }
+      FlightRecorder.tick(snapshot);
     }
 
     // ========================================================================
@@ -548,7 +437,7 @@ export function createControls(
     if (debugOptions?.leadNdc !== undefined) {
       hud.leadNdc = `${debugOptions.leadNdc.x.toFixed(3)}, ${debugOptions.leadNdc.y.toFixed(3)}`;
     }
-    Debug.updateHUD(hud);
+    DevOverlay.updateHUD(hud);
   }
 
   function getReticle(out: ReticleState): void {

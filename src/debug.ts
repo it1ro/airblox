@@ -193,3 +193,8 @@ export const Debug = {
     renderHUD(this.hud, values);
   }
 };
+
+/** Тонкий фасад для HUD: используется controls и др., без доступа к логам. */
+export const DevOverlay = {
+  updateHUD: (values: Record<string, string>) => Debug.updateHUD(values)
+};

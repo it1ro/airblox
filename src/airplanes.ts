@@ -10,11 +10,14 @@ export interface AirplaneStats {
   maxPitch: number;       // ограничение угла тангажа
   maxRoll: number;        // ограничение угла крена
 
-  // Опциональные лимиты угловых скоростей (рад/кадр или рад/с — зависит от того, где применяется clamp).
-  // Сейчас не используются напрямую, но понадобятся для «WT feel» (задержка/инерция) на уровне ограничителей.
+  // Лимиты угловых скоростей (рад/кадр) — создают «задержку догоняния» прицела (4.4).
   maxYawRate?: number;
   maxPitchRate?: number;
   maxRollRate?: number;
+  // Макс. приращение угловой скорости за кадр (рад/кадр) — ограничение *Accel, второй уровень задержки.
+  maxPitchRateChange?: number;
+  maxYawRateChange?: number;
+  maxRollRateChange?: number;
 }
 
 // === 1. Лёгкий истребитель (самый манёвренный) ===
@@ -28,7 +31,13 @@ export const LIGHT_FIGHTER: AirplaneStats = {
   rollDamping: 0.90,
   autoLevel: 0.015,
   maxPitch: 0.9,
-  maxRoll: 1.4
+  maxRoll: 1.4,
+  maxPitchRate: 0.05,
+  maxYawRate: 0.045,
+  maxRollRate: 0.06,
+  maxPitchRateChange: 0.012,
+  maxYawRateChange: 0.011,
+  maxRollRateChange: 0.015
 };
 
 // === 2. Тяжёлый штурмовик ===
@@ -42,7 +51,13 @@ export const HEAVY_ATTACKER: AirplaneStats = {
   rollDamping: 0.95,
   autoLevel: 0.010,
   maxPitch: 0.6,
-  maxRoll: 0.9
+  maxRoll: 0.9,
+  maxPitchRate: 0.04,
+  maxYawRate: 0.035,
+  maxRollRate: 0.05,
+  maxPitchRateChange: 0.009,
+  maxYawRateChange: 0.008,
+  maxRollRateChange: 0.012
 };
 
 // === 3. Балансный самолёт (универсальный) ===
@@ -56,7 +71,13 @@ export const BALANCED_PLANE: AirplaneStats = {
   rollDamping: 0.93,
   autoLevel: 0.012,
   maxPitch: 0.75,
-  maxRoll: 1.1
+  maxRoll: 1.1,
+  maxPitchRate: 0.055,
+  maxYawRate: 0.05,
+  maxRollRate: 0.065,
+  maxPitchRateChange: 0.014,
+  maxYawRateChange: 0.012,
+  maxRollRateChange: 0.018
 };
 
 // === 4. Скоростной разведчик ===
@@ -70,7 +91,13 @@ export const SCOUT_PLANE: AirplaneStats = {
   rollDamping: 0.92,
   autoLevel: 0.014,
   maxPitch: 0.7,
-  maxRoll: 1.3
+  maxRoll: 1.3,
+  maxPitchRate: 0.048,
+  maxYawRate: 0.042,
+  maxRollRate: 0.068,
+  maxPitchRateChange: 0.011,
+  maxYawRateChange: 0.009,
+  maxRollRateChange: 0.016
 };
 
 // === 5. Тренировочный самолёт (очень стабильный) ===
@@ -84,5 +111,11 @@ export const TRAINER_PLANE: AirplaneStats = {
   rollDamping: 0.96,
   autoLevel: 0.020,
   maxPitch: 0.5,
-  maxRoll: 0.8
+  maxRoll: 0.8,
+  maxPitchRate: 0.038,
+  maxYawRate: 0.032,
+  maxRollRate: 0.045,
+  maxPitchRateChange: 0.007,
+  maxYawRateChange: 0.006,
+  maxRollRateChange: 0.010
 };

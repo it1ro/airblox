@@ -17,7 +17,22 @@ type AirplaneStatsYaw = AirplaneStats & {
 };
 
 /**
+ * Ограничивает приращение угловой скорости за кадр (4.4 — ограничители для «задержки»).
+ * Если задан maxRateChange, дельта за кадр не превышает его по модулю.
+ */
+function clampDelta(
+  delta: number,
+  maxRateChange: number | undefined
+): number {
+  if (maxRateChange === undefined) return delta;
+  if (delta > maxRateChange) return maxRateChange;
+  if (delta < -maxRateChange) return -maxRateChange;
+  return delta;
+}
+
+/**
  * Обновление угловых скоростей по вводу игрока (инерция).
+ * Учитывает ограничители приращения за кадр (max*RateChange), если заданы в stats.
  * Возвращает новые pitchVelocity, rollVelocity, yawVelocity.
  */
 export function updateInertia(
@@ -30,10 +45,13 @@ export function updateInertia(
   yawVel = 0
 ): AngularVelocities {
   const yawAccel = stats.yawAccel ?? stats.rollAccel;
+  const dPitch = clampDelta(pitchInput * stats.pitchAccel, stats.maxPitchRateChange);
+  const dRoll = clampDelta(rollInput * stats.rollAccel, stats.maxRollRateChange);
+  const dYaw = clampDelta(yawInput * yawAccel, stats.maxYawRateChange);
   return {
-    pitchVelocity: pitchVel + pitchInput * stats.pitchAccel,
-    rollVelocity: rollVel + rollInput * stats.rollAccel,
-    yawVelocity: yawVel + yawInput * yawAccel
+    pitchVelocity: pitchVel + dPitch,
+    rollVelocity: rollVel + dRoll,
+    yawVelocity: yawVel + dYaw
   };
 }
 
@@ -48,9 +66,12 @@ export function updateInertiaInto(
   stats: AirplaneStatsYaw
 ): AngularVelocities {
   const yawAccel = stats.yawAccel ?? stats.rollAccel;
-  out.pitchVelocity = pitchVel + pitchInput * stats.pitchAccel;
-  out.rollVelocity = rollVel + rollInput * stats.rollAccel;
-  out.yawVelocity = yawVel + yawInput * yawAccel;
+  const dPitch = clampDelta(pitchInput * stats.pitchAccel, stats.maxPitchRateChange);
+  const dRoll = clampDelta(rollInput * stats.rollAccel, stats.maxRollRateChange);
+  const dYaw = clampDelta(yawInput * yawAccel, stats.maxYawRateChange);
+  out.pitchVelocity = pitchVel + dPitch;
+  out.rollVelocity = rollVel + dRoll;
+  out.yawVelocity = yawVel + dYaw;
   return out;
 }
 

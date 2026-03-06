@@ -73,8 +73,11 @@ export function createControls(
   const downVector = new THREE.Vector3(0, -1, 0);
   const raycaster = new THREE.Raycaster();
   const tempVector = new THREE.Vector3();
+  const tempVector2 = new THREE.Vector2();
   const tempEuler = new THREE.Euler();
   const tempQuat = new THREE.Quaternion();
+  /** Направление прицеливания в мировых координатах (луч от камеры через перекрестие). */
+  const aimDir_world = new THREE.Vector3(0, 0, 1);
 
   // ReticleState: перекрестие в NDC [-1..1], без аллокаций в update
   let reticleX_ndc = 0;
@@ -206,6 +209,13 @@ export function createControls(
         reticleX_ndc *= 1 - reticleReturnSpeed;
         reticleY_ndc *= 1 - reticleReturnSpeed;
       }
+    }
+
+    // Ray от камеры через перекрестие → aimDir_world (для расчёта ошибок наведения)
+    if (camera) {
+      tempVector2.set(reticleX_ndc, reticleY_ndc);
+      raycaster.setFromCamera(tempVector2, camera);
+      aimDir_world.copy(raycaster.ray.direction).normalize();
     }
 
     const keys = getKeys();
@@ -458,5 +468,10 @@ export function createControls(
     out.y_ndc = reticleY_ndc;
   }
 
-  return { update, getReticle };
+  /** Копирует текущее направление прицеливания (луч от камеры через перекрестие) в out. */
+  function getAimDir(out: THREE.Vector3): void {
+    out.copy(aimDir_world);
+  }
+
+  return { update, getReticle, getAimDir };
 }

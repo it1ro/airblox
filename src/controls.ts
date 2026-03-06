@@ -5,7 +5,7 @@ import { Debug } from "./debug";
 import { updateInertia, applyDamping } from "./physics/flight-model";
 import { computeStabilizationForce } from "./physics/stabilization";
 import { getKeys, subscribe as subscribeKeyboard } from "./input/keyboard-input";
-import type { AirplaneUserData, CameraLike } from "./types";
+import type { CameraLike } from "./types";
 
 // Логируются / Logged:
 //  - ввод игрока (pitch/roll) 
@@ -276,15 +276,6 @@ export function createControls(
     // === Движение вперёд / Forward movement ===
     tempVector.copy(forwardVector).applyQuaternion(airplane.quaternion).multiplyScalar(stats.speed);
     airplane.position.add(tempVector);
-
-    // === ВРАЩЕНИЕ ПРОПЕЛЛЕРА ===
-    const planeData = airplane.userData as AirplaneUserData;
-    if (planeData.propeller) {
-      // скорость вращения зависит от скорости самолёта
-      const spin = stats.speed * 20; // можно увеличить/уменьшить
-      planeData.propeller.rotation.z += spin;
-    }
-
 
     // ========================================================================
     // ВЫСОТА НАД ЗЕМЛЁЙ (raycast вниз) / ALTITUDE ABOVE GROUND

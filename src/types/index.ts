@@ -1,9 +1,7 @@
 import * as THREE from "three";
 
-/** UserData самолёта: ссылка на группу пропеллера для анимации */
-export interface AirplaneUserData {
-  propeller?: THREE.Group;
-}
+/** UserData самолёта (для будущих расширений) */
+export interface AirplaneUserData {}
 
 /** UserData облака: маркер для фильтрации в сцене */
 export interface CloudUserData {

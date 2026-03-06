@@ -4,14 +4,20 @@ import { createAirplane } from "./airplane";
 import { createControls } from "./controls";
 import { LIGHT_FIGHTER } from "./airplanes";
 import { AudioManager } from "./audio";
+import { subscribe as subscribeMouseInput } from "./input/mouse-input";
 
 // === HDR LOADER ===
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
 const { scene, camera, renderer, clouds, level, cleanup } = createScene();
 
-// При выгрузке страницы снимаем слушатели (resize и т.д.)
-window.addEventListener("beforeunload", () => cleanup());
+const unsubscribeMouse = subscribeMouseInput(renderer.domElement);
+
+// При выгрузке страницы снимаем слушатели (resize, mouse и т.д.)
+window.addEventListener("beforeunload", () => {
+  cleanup();
+  unsubscribeMouse();
+});
 const airplane = createAirplane();
 scene.add(airplane);
 

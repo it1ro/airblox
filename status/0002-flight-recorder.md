@@ -22,7 +22,7 @@
 ## Прогресс
 
 - ✅ **Этап 1**: Реализован `src/flight-recorder.ts` (тип `FlightSnapshot`, буфер, throttle по frequencyHz, start/stop, getLastSnapshot, getRecordingBlob, download, mark).
-- ⏳ **Этап 2**: В `controls.ts` — удалить все `Debug.log` и блок STATE; сборка снимка только при `FlightRecorder.isRecording()` и вызов `FlightRecorder.tick(snapshot)`; заменить Debug на DevOverlay для updateHUD; убрать Debug.init() из controls.
+- ✅ **Этап 2**: В `controls.ts` — удалены все `Debug.log` и блок STATE; сборка снимка только при `FlightRecorder.isRecording()` и вызов `FlightRecorder.tick(snapshot)`; Debug заменён на DevOverlay для updateHUD; Debug.init() убран из controls.
 - ✅ **Этап 3**: Упрощён debug.ts до DevOverlay (HUD, toast, F7/F8/F9 через FlightRecorder); удалены logs, logConfig, presets, log.
 - ✅ **Этап 4**: В types удалён DebugLogEntry.
 - ✅ **Этап 5**: main.ts — вызов DevOverlay.init() после initAimOverlay.

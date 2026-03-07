@@ -40,7 +40,13 @@ DevOverlay.init();
 const testTarget = createTestTarget(scene);
 const cameraOffset = new THREE.Vector3(0, 3, -8);
 const reticleState = { x_ndc: 0, y_ndc: 0 };
+const aimErrorsOut = { yawErrorRad: 0, pitchErrorRad: 0 };
 const desiredPos = new THREE.Vector3();
+/** Включить периодический вывод в консоль для проверки сигналов: ?log=1 или sessionStorage.airblox_log */
+const debugLogEnabled =
+  typeof window !== "undefined" &&
+  (window.location.search.includes("log=1") || sessionStorage.getItem("airblox_log") === "1");
+let debugLogLast = 0;
 /** Скорость снаряда для расчёта упреждения (м/с). */
 const PROJECTILE_SPEED = 500;
 /** Вектор от самолёта к цели (для solveInterceptTime), переиспользуемый. */
@@ -108,6 +114,17 @@ function loop() {
       : undefined;
   controls.update(undefined, debugOptions);
   controls.getReticle(reticleState);
+
+  if (debugLogEnabled && now - debugLogLast >= 500) {
+    debugLogLast = now;
+    controls.getAimErrors(aimErrorsOut);
+    const deg = (r: number) => ((r * 180) / Math.PI).toFixed(2);
+    console.log("[airblox]", {
+      reticleNdc: { x: reticleState.x_ndc.toFixed(3), y: reticleState.y_ndc.toFixed(3) },
+      aimErrorsDeg: { yaw: deg(aimErrorsOut.yawErrorRad), pitch: deg(aimErrorsOut.pitchErrorRad) },
+      leadNdc: leadX_ndc !== undefined && leadY_ndc !== undefined ? { x: leadX_ndc.toFixed(3), y: leadY_ndc.toFixed(3) } : null
+    });
+  }
 
   // === КАМЕРА ТРЕТЬЕГО ЛИЦА ===
   desiredPos.copy(airplane.position).add(cameraOffset);

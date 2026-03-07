@@ -183,8 +183,14 @@ export function createControls(
       const lx = planeRight.dot(aimDir_world);
       const ly = planeUp.dot(aimDir_world);
       const lz = planeForward.dot(aimDir_world);
-      const rawYawError = Math.atan2(lx, lz);
-      const rawPitchError = -Math.atan2(ly, lz);
+      let rawYawError = Math.atan2(lx, lz);
+      let rawPitchError = -Math.atan2(ly, lz);
+      // 7.2 Aim behind: при lz < 0 ограничиваем ошибки, чтобы не было резких флипов
+      const maxErrorWhenBehind = (120 * Math.PI) / 180;
+      if (lz < 0) {
+        rawYawError = THREE.MathUtils.clamp(rawYawError, -maxErrorWhenBehind, maxErrorWhenBehind);
+        rawPitchError = THREE.MathUtils.clamp(rawPitchError, -maxErrorWhenBehind, maxErrorWhenBehind);
+      }
       const deadzone = AIM_ERROR_DEADZONE_RAD;
       yawErrorRad = Math.abs(rawYawError) < deadzone ? 0 : rawYawError;
       pitchErrorRad = Math.abs(rawPitchError) < deadzone ? 0 : rawPitchError;

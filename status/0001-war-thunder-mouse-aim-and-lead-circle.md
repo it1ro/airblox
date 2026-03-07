@@ -21,7 +21,7 @@
 - ✅ **Этап 6.2**: Тестовая цель — `src/game/test-target.ts`: `createTestTarget(scene, options)` — сфера в сцене, `pos`/`vel` (переиспользуемые Vector3), `update(dt)` без аллокаций; подключена в `main.ts`, в loop вызывается с реальным dt.
 - ✅ **Этап 6.3**: Проекция leadPoint на экран — в `main.ts` в loop: `rVec = target.pos - airplane.position`, `t = solveInterceptTime(rVec, target.vel, PROJECTILE_SPEED)`; при `t !== null`: `leadPointWorld = target.pos + target.vel*t`, `leadPointWorld.project(camera)`; кружок отображается в `updateAimOverlay(..., leadX_ndc, leadY_ndc)`; при точке сзади камеры (`z > 1`) кружок скрыт.
 - ✅ **Этап 7.1**: Debug HUD — в `Debug.updateHUD` добавлен вывод: `yawErrorDeg`, `pitchErrorDeg`, `yawVel`, `reticleNdc`, `leadNdc` (если есть); `leadNdc` передаётся из `main` в `controls.update(_, debugOptions)`.
-- ✅ **Этап 7.2**: Крайние случаи — тесты по правилам (zero speed, stall, inverted flight): `flight-model.test.ts` (нулевой ввод/скорости, maxRateChange, damping), `aim-controller.test.ts` (deadzone, большая ошибка/inverted, высокая угловая скорость/stall, clamp ±1), `intercept.test.ts` (zero speed снаряда/цели, нет решения, граничная геометрия). Vitest добавлен, `npm run test` / `npm run test:watch`.
+- ✅ **Этап 7.2**: Крайние случаи — тесты по правилам (zero speed, stall, inverted flight): `flight-model.test.ts` (нулевой ввод/скорости, maxRateChange, damping), `aim-controller.test.ts` (deadzone, большая ошибка/inverted, высокая угловая скорость/stall, clamp ±1), `intercept.test.ts` (zero speed снаряда/цели, нет решения, граничная геометрия). Vitest добавлен, `npm run test` / `npm run test:watch`. Ограничение «aim behind» (lz < 0): ошибки yaw/pitch насыщаются до ±120° в `controls.ts`, чтобы не было резких флипов.
 
 ## Чеклист по плану
 
@@ -63,4 +63,10 @@
 
 - [x] **7.1 Debug HUD**
 - [x] **7.2 Крайние случаи**
+
+## Проверка в рантайме
+
+- **Лог в консоль**: при открытии с `?log=1` в URL или при `sessionStorage.setItem('airblox_log','1')` раз в 500 ms в консоль выводятся `reticleNdc`, `aimErrorsDeg`, `leadNdc` для сверки сигналов.
+- **HUD**: на экране отображаются `yawErrorDeg`, `pitchErrorDeg`, `yawVel`, `reticleNdc`, `leadNdc` (DevOverlay).
+- **Тесты**: `npm run test` — 26 тестов (flight-model, aim-controller, intercept, flight-recorder с передачей leadNdc и снимками).
 

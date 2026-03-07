@@ -6,6 +6,7 @@ import { LIGHT_FIGHTER } from "./airplanes";
 import { AudioManager } from "./audio";
 import { subscribe as subscribeMouseInput } from "./input/mouse-input";
 import { initAimOverlay, updateAimOverlay } from "./ui/aim-overlay";
+import { DevOverlay } from "./debug";
 import { createTestTarget } from "./game/test-target";
 import { solveInterceptTime } from "./physics/intercept";
 
@@ -34,6 +35,7 @@ const controls = createControls(
 );
 
 initAimOverlay(renderer.domElement);
+DevOverlay.init();
 
 const testTarget = createTestTarget(scene);
 const cameraOffset = new THREE.Vector3(0, 3, -8);
@@ -99,7 +101,7 @@ function loop() {
     }
   }
 
-  // === ОБНОВЛЕНИЕ УПРАВЛЕНИЯ (с leadNdc для Debug HUD 7.1) ===
+  // === ОБНОВЛЕНИЕ УПРАВЛЕНИЯ (с leadNdc для DevOverlay HUD и снимка Flight Recorder) ===
   const debugOptions =
     leadX_ndc !== undefined && leadY_ndc !== undefined
       ? { leadNdc: { x: leadX_ndc, y: leadY_ndc } }

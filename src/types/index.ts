@@ -13,14 +13,6 @@ export interface IslandUserData {
   island: boolean;
 }
 
-/** Запись в логе отладки */
-export interface DebugLogEntry {
-  time: number;
-  type: string;
-  event: string;
-  [key: string]: unknown;
-}
-
 /** Минимальный интерфейс камеры для доступа к position и quaternion */
 export interface CameraLike {
   position: THREE.Vector3;
